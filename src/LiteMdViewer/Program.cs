@@ -1,20 +1,17 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using MdManager.Data;
-using MdManager.Endpoints;
-using MdManager.Models;
-using MdManager.Services;
+using LiteMdViewer.Data;
+using LiteMdViewer.Endpoints;
+using LiteMdViewer.Models;
+using LiteMdViewer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // SQLite next to the app's content root.
-var dbPath = Path.Combine(builder.Environment.ContentRootPath, "mdmanager.db");
+var dbPath = Path.Combine(builder.Environment.ContentRootPath, "litemdviewer.db");
 builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddSingleton<LockManager>();
 builder.Services.AddSingleton<FsBrowser>();
-builder.Services.AddHostedService<FileLockService>();
-builder.Services.AddHostedService<FileWatcherService>();
 
 // HTTP only, loopback only — the disk-touching endpoints must never be off-box.
 const string url = "http://127.0.0.1:5099";
@@ -58,7 +55,6 @@ static void SeedSettings(AppDbContext db)
         if (db.Settings.Find(key) is null) db.Settings.Add(new Setting { Key = key, Value = value });
     }
     Ensure("theme", "light");
-    Ensure("lockOnStartup", "true");
     Ensure("openBrowserOnStart", "false");
     db.SaveChanges();
 }

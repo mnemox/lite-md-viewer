@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using MdManager.Models;
+using LiteMdViewer.Models;
 
-namespace MdManager.Data;
+namespace LiteMdViewer.Data;
 
 public class AppDbContext : DbContext
 {

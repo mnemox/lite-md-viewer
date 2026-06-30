@@ -1,4 +1,4 @@
-namespace MdManager.Models;
+namespace LiteMdViewer.Models;
 
 /// <summary>A grouping folder for managed-file links. Folders form an arbitrary-depth tree.</summary>
 public class Folder
@@ -17,19 +17,10 @@ public class ManagedFile
     public string FullPath { get; set; } = "";          // canonical absolute path; unique
     public string Title { get; set; } = "";             // editable display name (never renames the file)
     public int? FolderId { get; set; }                  // null => top level
-    public bool IsLockRequested { get; set; } = true;   // user intent: should this be locked
-    public string Status { get; set; } = FileStatus.Unlocked;
     public int SortOrder { get; set; }
     public DateTime? LastWriteUtc { get; set; }
     public DateTime AddedUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastOpenedUtc { get; set; }
-}
-
-public static class FileStatus
-{
-    public const string Locked = "locked";
-    public const string Unlocked = "unlocked";
-    public const string Missing = "missing";
 }
 
 /// <summary>Key/value application settings (theme, startup flags, last paths).</summary>

@@ -1,5 +1,5 @@
 // Renders the folder/file tree in the drawer and wires its interactions:
-// open, inline rename, lock toggle, drag-to-folder, and a per-row action menu.
+// open, inline rename, drag-to-folder, and a per-row action menu.
 
 const collapsed = new Set();      // folder ids the user collapsed (expanded by default)
 
@@ -91,35 +91,31 @@ export function renderTree(container, data, handlers, activeFileId) {
     row.draggable = true;
     row.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/file-id', String(file.id)));
 
-    const caret = document.createElement('span'); caret.className = 'caret';
-    const icon = document.createElement('span'); icon.className = 'icon'; icon.textContent = '📄';
+    // Files have no caret (nothing to expand): the icon takes the caret column so a
+    // file's icon lines up with the arrows of folders at the same level.
+    const icon = document.createElement('span'); icon.className = 'icon file-icon'; icon.textContent = '📄';
     const label = document.createElement('span'); label.className = 'label'; label.textContent = file.title; label.dir = 'auto';
-    const lock = document.createElement('span'); lock.className = 'lock';
-    lock.textContent = file.isLockRequested ? '🔒' : '🔓';
-    lock.title = file.isLockRequested ? 'Locked — click to unlock' : 'Unlocked — click to lock';
     const kebab = document.createElement('span'); kebab.className = 'kebab'; kebab.textContent = '⋯';
 
     if (file.missing) { label.style.color = 'var(--danger)'; label.title = 'File is missing on disk'; }
 
-    row.append(caret, icon, label, lock, kebab);
+    row.append(icon, label, kebab);
 
     row.addEventListener('click', (e) => {
-      if (e.target === lock || e.target === kebab || label.isContentEditable) return;
+      if (e.target === kebab || label.isContentEditable) return;
       handlers.openFile(file.id);
     });
     label.addEventListener('dblclick', (e) => {
       e.stopPropagation();
       editableLabel(label, file.title, (val) => handlers.renameFile(file.id, val));
     });
-    lock.addEventListener('click', (e) => { e.stopPropagation(); handlers.toggleLock(file); });
     kebab.addEventListener('click', (e) => {
       e.stopPropagation();
       popupMenu(kebab, [
         { label: 'Rename', onClick: () => editableLabel(label, file.title, (v) => handlers.renameFile(file.id, v)) },
         { label: 'Move to top level', onClick: () => handlers.moveFile(file.id, null) },
-        { label: file.isLockRequested ? 'Unlock' : 'Lock', onClick: () => handlers.toggleLock(file) },
         { label: 'Remove from list', onClick: () => handlers.removeFromList(file) },
-        { label: 'Delete from disk…', danger: true, disabled: file.isLockRequested, onClick: () => handlers.deleteDisk(file) },
+        { label: 'Delete from disk…', danger: true, onClick: () => handlers.deleteDisk(file) },
       ]);
     });
     return row;

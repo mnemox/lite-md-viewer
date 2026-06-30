@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <RootNamespace>MdManager</RootNamespace>
-    <AssemblyName>MdManager</AssemblyName>
+    <RootNamespace>LiteMdViewer</RootNamespace>
+    <AssemblyName>LiteMdViewer</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

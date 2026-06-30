@@ -1,9 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using MdManager.Data;
-using MdManager.Models;
-using MdManager.Services;
+using LiteMdViewer.Data;
+using LiteMdViewer.Models;
 
-namespace MdManager.Endpoints;
+namespace LiteMdViewer.Endpoints;
 
 public static class FilesEndpoints
 {
@@ -11,23 +10,23 @@ public static class FilesEndpoints
     {
         var g = app.MapGroup("/api");
 
-        // Whole drawer: folders + files with current status.
+        // Whole drawer: folders + files (missing-on-disk computed on read).
         g.MapGet("/tree", async (AppDbContext db) =>
         {
             var folders = await db.Folders
                 .OrderBy(f => f.SortOrder).ThenBy(f => f.Name)
                 .Select(f => new FolderDto(f.Id, f.Name, f.ParentId, f.SortOrder))
                 .ToListAsync();
-            var files = await db.Files
+            var files = (await db.Files
                 .OrderBy(f => f.SortOrder).ThenBy(f => f.Title)
-                .Select(f => new FileDto(f.Id, f.Title, f.FullPath, f.FolderId, f.Status,
-                                         f.IsLockRequested, f.SortOrder, f.Status == FileStatus.Missing))
-                .ToListAsync();
+                .ToListAsync())
+                .Select(ToDto)
+                .ToList();
             return Results.Ok(new TreeDto(folders, files));
         });
 
-        // Register a real on-disk path under management (and lock it by default).
-        g.MapPost("/files", async (AddFileRequest req, AppDbContext db, LockManager locks) =>
+        // Register a real on-disk path under management.
+        g.MapPost("/files", async (AddFileRequest req, AppDbContext db) =>
         {
             if (string.IsNullOrWhiteSpace(req.Path))
                 return Results.BadRequest(new { error = "A path is required." });
@@ -56,27 +55,18 @@ public static class FilesEndpoints
                 FullPath = full,
                 Title = Path.GetFileNameWithoutExtension(full),
                 FolderId = req.FolderId,
-                IsLockRequested = true,
                 SortOrder = maxSort + 1,
                 LastWriteUtc = File.GetLastWriteTimeUtc(full),
                 AddedUtc = DateTime.UtcNow,
-                Status = FileStatus.Unlocked,
             };
-
-            try
-            {
-                if (locks.CanLock(full)) { locks.Lock(full); file.Status = FileStatus.Locked; }
-                else { file.IsLockRequested = false; } // not an NTFS/Windows volume
-            }
-            catch { file.Status = FileStatus.Unlocked; }
 
             db.Files.Add(file);
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(file));
         });
 
-        // Create a brand-new .md file on disk in a chosen folder, then manage + lock it.
-        g.MapPost("/files/new", async (NewFileRequest req, AppDbContext db, LockManager locks) =>
+        // Create a brand-new .md file on disk in a chosen folder, then manage it.
+        g.MapPost("/files/new", async (NewFileRequest req, AppDbContext db) =>
         {
             if (string.IsNullOrWhiteSpace(req.Dir) || string.IsNullOrWhiteSpace(req.Name))
                 return Results.BadRequest(new { error = "A folder and a file name are required." });
@@ -114,19 +104,10 @@ public static class FilesEndpoints
                 FullPath = full,
                 Title = title,
                 FolderId = req.FolderId,
-                IsLockRequested = true,
                 SortOrder = maxSort + 1,
                 LastWriteUtc = File.GetLastWriteTimeUtc(full),
                 AddedUtc = DateTime.UtcNow,
-                Status = FileStatus.Unlocked,
             };
-
-            try
-            {
-                if (locks.CanLock(full)) { locks.Lock(full); file.Status = FileStatus.Locked; }
-                else { file.IsLockRequested = false; } // not an NTFS/Windows volume
-            }
-            catch { file.Status = FileStatus.Unlocked; }
 
             db.Files.Add(file);
             await db.SaveChangesAsync();
@@ -148,60 +129,21 @@ public static class FilesEndpoints
             return Results.Ok(ToDto(f));
         });
 
-        g.MapPost("/files/{id:int}/lock", async (int id, AppDbContext db, LockManager locks) =>
-        {
-            var f = await db.Files.FindAsync(id);
-            if (f is null) return Results.NotFound();
-            if (!File.Exists(f.FullPath))
-            {
-                f.Status = FileStatus.Missing;
-                await db.SaveChangesAsync();
-                return Results.Conflict(new { error = "File is missing on disk." });
-            }
-            if (!locks.CanLock(f.FullPath))
-                return Results.BadRequest(new { error = "Locking requires an NTFS volume on Windows." });
-            try
-            {
-                locks.Lock(f.FullPath);
-                f.IsLockRequested = true;
-                f.Status = FileStatus.Locked;
-                await db.SaveChangesAsync();
-                return Results.Ok(ToDto(f));
-            }
-            catch (Exception ex) { return Results.Problem("Could not lock: " + ex.Message); }
-        });
-
-        g.MapPost("/files/{id:int}/unlock", async (int id, AppDbContext db, LockManager locks) =>
-        {
-            var f = await db.Files.FindAsync(id);
-            if (f is null) return Results.NotFound();
-            locks.Unlock(f.FullPath);
-            f.IsLockRequested = false;
-            f.Status = File.Exists(f.FullPath) ? FileStatus.Unlocked : FileStatus.Missing;
-            await db.SaveChangesAsync();
-            return Results.Ok(ToDto(f));
-        });
-
         // Remove from management only (does NOT touch the file on disk).
-        g.MapDelete("/files/{id:int}", async (int id, bool? force, AppDbContext db, LockManager locks) =>
+        g.MapDelete("/files/{id:int}", async (int id, AppDbContext db) =>
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
-            if (f.IsLockRequested && !(force ?? false))
-                return Results.Conflict(new { error = "File is locked. Unlock first, or pass force=true." });
-            if (f.IsLockRequested) locks.Unlock(f.FullPath);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
 
-        // Delete the real file from disk. Refused while locked.
+        // Delete the real file from disk and drop it from management.
         g.MapDelete("/files/{id:int}/disk", async (int id, AppDbContext db) =>
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
-            if (f.IsLockRequested)
-                return Results.Conflict(new { error = "File is locked. Unlock before deleting from disk." });
             try
             {
                 if (File.Exists(f.FullPath)) File.Delete(f.FullPath);
@@ -214,5 +156,5 @@ public static class FilesEndpoints
     }
 
     private static FileDto ToDto(ManagedFile f) =>
-        new(f.Id, f.Title, f.FullPath, f.FolderId, f.Status, f.IsLockRequested, f.SortOrder, f.Status == FileStatus.Missing);
+        new(f.Id, f.Title, f.FullPath, f.FolderId, f.SortOrder, !File.Exists(f.FullPath));
 }

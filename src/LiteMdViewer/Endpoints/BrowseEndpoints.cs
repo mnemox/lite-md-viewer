@@ -1,6 +1,6 @@
-using MdManager.Services;
+using LiteMdViewer.Services;
 
-namespace MdManager.Endpoints;
+namespace LiteMdViewer.Endpoints;
 
 public static class BrowseEndpoints
 {

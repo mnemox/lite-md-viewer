@@ -7,11 +7,6 @@ import { initBrowse, openBrowse } from './browse.js';
 
 const $ = (id) => document.getElementById(id);
 
-// Monochrome icons (inherit currentColor → var(--text), so they stay crisp and
-// high-contrast in both themes).
-const ICON_LOCK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
-const ICON_UNLOCK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
-
 const state = {
   treeData: { folders: [], files: [] },
   active: null,        // active FileDto
@@ -61,7 +56,6 @@ async function refreshTree() {
 
 const treeHandlers = {
   openFile,
-  toggleLock: (file) => toggleLock(file),
   renameFile: async (id, title) => { try { await api.patchFile(id, { title }); await refreshTree(); } catch (e) { toast(e.message, 'error'); } },
   moveFile: async (id, folderId) => {
     try { await api.patchFile(id, folderId == null ? { moveToRoot: true } : { folderId }); await refreshTree(); }
@@ -96,7 +90,7 @@ async function openFile(id, { push = true } = {}) {
     if (!state.active) $('welcome').classList.remove('hidden');
     toast(e.message, 'error'); await refreshTree(); return;
   }
-  state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, status: content.status, isLockRequested: content.status === 'locked' };
+  state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, missing: false };
   state.text = content.text;
   document.body.classList.add('file-open');
   setMode('view');
@@ -119,16 +113,12 @@ function urlFileId() {
 function updateToolbar() {
   if (!state.active) return;
   $('fileTitle').textContent = state.active.title;
+  // The only status worth surfacing is a file that's gone missing on disk.
   const badge = $('fileStatus');
-  const s = state.active.status || (state.active.isLockRequested ? 'locked' : 'unlocked');
-  badge.textContent = s;
-  badge.className = 'badge ' + s;
-  const locked = state.active.isLockRequested;
-  const lockBtn = $('lockBtn');
-  lockBtn.innerHTML = locked ? ICON_LOCK : ICON_UNLOCK;
-  lockBtn.classList.toggle('locked', locked);
-  lockBtn.classList.toggle('unlocked', !locked);
-  lockBtn.title = locked ? 'Locked — click to unlock' : 'Unlocked — click to lock';
+  const missing = !!state.active.missing;
+  badge.textContent = missing ? 'missing' : '';
+  badge.className = 'badge missing';
+  badge.classList.toggle('hidden', !missing);
 }
 
 let previewTimer = null;
@@ -158,32 +148,17 @@ async function save() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-// ---------- lock / delete ----------
-async function toggleLock(file) {
-  try {
-    const updated = file.isLockRequested ? await api.unlock(file.id) : await api.lock(file.id);
-    if (state.active && state.active.id === file.id) { state.active = updated; updateToolbar(); }
-    await refreshTree();
-    toast(updated.isLockRequested ? 'Locked' : 'Unlocked', 'ok');
-  } catch (e) { toast(e.message, 'error'); }
-}
-
+// ---------- remove / delete ----------
 async function removeFromList(file) {
   try {
     await api.removeFile(file.id);
-  } catch (e) {
-    if (e.status === 409) {
-      if (!(await confirmDialog('This file is locked. Remove from the list anyway? (The file stays on disk and is unlocked.)', { okLabel: 'Remove' }))) return;
-      try { await api.removeFile(file.id, true); } catch (e2) { toast(e2.message, 'error'); return; }
-    } else { toast(e.message, 'error'); return; }
-  }
+  } catch (e) { toast(e.message, 'error'); return; }
   if (state.active && state.active.id === file.id) clearActive();
   await refreshTree();
   toast('Removed from list', 'ok');
 }
 
 async function deleteDisk(file) {
-  if (file.isLockRequested) { toast('Unlock the file before deleting it from disk.', 'error'); return; }
   if (!(await confirmDialog(`Delete “${file.title}” from disk? This cannot be undone.`, { okLabel: 'Delete', danger: true }))) return;
   try {
     await api.deleteDisk(file.id);
@@ -208,7 +183,7 @@ function startAddFile() {
   openBrowse(async (path) => {
     try {
       const dto = await api.addFile(path);
-      toast('Added & locked', 'ok');
+      toast('Added', 'ok');
       await refreshTree();
       openFile(dto.id);
     } catch (e) {
@@ -222,7 +197,7 @@ function startNewFile() {
   openBrowse(async ({ dir, name }) => {
     try {
       const dto = await api.newFile(dir, name);
-      toast('Created & locked', 'ok');
+      toast('Created', 'ok');
       await refreshTree();
       openFile(dto.id);
     } catch (e) {
@@ -280,7 +255,6 @@ async function init() {
   $('viewModeBtn').onclick = () => setMode('view');
   $('editModeBtn').onclick = () => setMode('edit');
   $('saveBtn').onclick = save;
-  $('lockBtn').onclick = () => { if (state.active) toggleLock(state.active); };
   $('editorText').addEventListener('input', () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => renderMarkdown($('editorText').value, $('editorPreview')), 300);
