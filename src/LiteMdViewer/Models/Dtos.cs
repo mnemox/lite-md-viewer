@@ -21,3 +21,17 @@ public record BrowseEntry(string Name, string Path, bool IsDir, bool IsMarkdown,
 public record BrowseResult(string? Path, string? Parent, bool IsRoot, IEnumerable<BrowseEntry> Entries);
 
 public record ContentDto(int Id, string Title, string FullPath, string Text);
+
+public record FileDetailsDto(
+    int Id, string Title, string FullPath,
+    DateTime? CreatedUtc, DateTime? ModifiedUtc, bool Exists);
+
+// ---- relations ----
+public record AddRelationRequest(int OtherId, string Kind); // kind: parent|child|sibling|companion
+public record RelationNodeDto(int Id, string Title, bool Missing);
+public record RelationEdgeDto(int FromId, int ToId, string Kind);
+public record GraphDto(
+    int ActiveId,
+    IEnumerable<RelationNodeDto> Nodes,
+    IEnumerable<RelationEdgeDto> Edges,
+    IEnumerable<RelationNodeDto> Companions);

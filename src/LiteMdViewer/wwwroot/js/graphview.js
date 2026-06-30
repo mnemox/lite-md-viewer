@@ -2,11 +2,10 @@
 // drag-to-pan. enhance() adds an expand button to each diagram; the overlay is a
 // single shared singleton that clones the diagram in on open (the live document
 // DOM is rebuilt frequently by renderMarkdown, so we never move the original svg).
+// Pan/zoom is handled by the shared createPanZoom (also used by the relations graph).
 
 import { toast } from './ui.js';
-
-const MIN = 0.1;
-const MAX = 12;
+import { createPanZoom } from './panzoom.js';
 
 const ICON_COPY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
 const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>';
@@ -14,9 +13,7 @@ const ICON_EXPAND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none"
 let overlay = null;       // .gv-overlay element (built lazily)
 let viewport = null;      // .gv-viewport (handles wheel/pointer)
 let stage = null;         // .gv-stage (gets the transform)
-const state = { scale: 1, tx: 0, ty: 0 };
-
-const clamp = (s) => Math.max(MIN, Math.min(MAX, s));
+let pz = null;            // shared pan/zoom controller
 
 // Add idempotent hover tools (copy + expand) to every rendered diagram in `container`.
 export function enhance(container) {
@@ -109,20 +106,19 @@ function buildOverlay() {
     <div class="gv-viewport"><div class="gv-stage"></div></div>`;
   viewport = overlay.querySelector('.gv-viewport');
   stage = overlay.querySelector('.gv-stage');
+  pz = createPanZoom(viewport, stage);
 
   overlay.querySelector('.gv-toolbar').addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'close') closeOverlay();
-    else if (act === 'in') zoomAroundCenter(1.2);
-    else if (act === 'out') zoomAroundCenter(1 / 1.2);
-    else if (act === 'reset') fitToScreen();
+    else if (act === 'in') pz.zoomIn();
+    else if (act === 'out') pz.zoomOut();
+    else if (act === 'reset') pz.fit();
   });
   // Backdrop click closes (only when the overlay itself is the target, never the
   // viewport/diagram/toolbar — so a pan-release isn't mistaken for a backdrop click).
   overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
 
-  viewport.addEventListener('wheel', onWheel, { passive: false });
-  viewport.addEventListener('pointerdown', onPointerDown);
   document.body.appendChild(overlay);
 }
 
@@ -135,7 +131,7 @@ function openOverlay(srcSvg) {
   overlay.classList.add('open');
   document.documentElement.style.overflow = 'hidden';   // lock page scroll
   document.addEventListener('keydown', onKey, true);    // CAPTURE → beats drawer's Esc
-  requestAnimationFrame(fitToScreen);               // wait a frame so layout/bbox is known
+  requestAnimationFrame(pz.fit);                    // wait a frame so layout/bbox is known
 }
 
 function closeOverlay() {
@@ -146,91 +142,9 @@ function closeOverlay() {
   document.removeEventListener('keydown', onKey, true);
 }
 
-function applyTransform() {
-  stage.style.transform = `translate(${state.tx}px, ${state.ty}px) scale(${state.scale})`;
-}
-
-function fitToScreen() {
-  const clone = stage.firstElementChild;
-  if (!clone) return;
-  const vp = viewport.getBoundingClientRect();
-  let w, h;
-  const vb = clone.viewBox && clone.viewBox.baseVal;
-  if (vb && vb.width && vb.height) {
-    w = vb.width; h = vb.height;
-  } else {
-    const b = clone.getBBox();
-    w = b.width; h = b.height;
-  }
-  if (!w || !h) return;
-  clone.style.width = w + 'px';                     // pin to a pixel box for clean scale math
-  clone.style.height = h + 'px';
-  const margin = 0.92;
-  state.scale = clamp(Math.min(vp.width / w, vp.height / h) * margin);
-  state.tx = (vp.width - w * state.scale) / 2;      // center
-  state.ty = (vp.height - h * state.scale) / 2;
-  applyTransform();
-}
-
-// Zoom keeping the content point under (cx,cy) [viewport coords] fixed.
-function zoomAt(cx, cy, next) {
-  next = clamp(next);
-  if (next === state.scale) return;
-  const px = (cx - state.tx) / state.scale;         // content point under (cx,cy)
-  const py = (cy - state.ty) / state.scale;
-  state.scale = next;
-  state.tx = cx - px * state.scale;                 // re-anchor that point
-  state.ty = cy - py * state.scale;
-  applyTransform();
-}
-
-function onWheel(e) {
-  e.preventDefault();
-  const rect = viewport.getBoundingClientRect();
-  const cx = e.clientX - rect.left;
-  const cy = e.clientY - rect.top;
-  zoomAt(cx, cy, state.scale * Math.exp(-e.deltaY * 0.0015)); // wheel up → zoom in
-}
-
-function zoomAroundCenter(factor) {
-  const rect = viewport.getBoundingClientRect();
-  zoomAt(rect.width / 2, rect.height / 2, state.scale * factor);
-}
-
-// ---- pan (Pointer Events) ----
-let dragging = false;
-let startX = 0, startY = 0, startTx = 0, startTy = 0;
-
-function onPointerDown(e) {
-  dragging = true;
-  startX = e.clientX; startY = e.clientY;
-  startTx = state.tx; startTy = state.ty;
-  viewport.setPointerCapture(e.pointerId);
-  viewport.classList.add('grabbing');
-  viewport.addEventListener('pointermove', onPointerMove);
-  viewport.addEventListener('pointerup', onPointerUp);
-  viewport.addEventListener('pointercancel', onPointerUp);
-}
-
-function onPointerMove(e) {
-  if (!dragging) return;
-  state.tx = startTx + (e.clientX - startX);
-  state.ty = startTy + (e.clientY - startY);
-  applyTransform();
-}
-
-function onPointerUp(e) {
-  dragging = false;
-  viewport.releasePointerCapture?.(e.pointerId);
-  viewport.classList.remove('grabbing');
-  viewport.removeEventListener('pointermove', onPointerMove);
-  viewport.removeEventListener('pointerup', onPointerUp);
-  viewport.removeEventListener('pointercancel', onPointerUp);
-}
-
 function onKey(e) {
   if (e.key === 'Escape') { e.stopPropagation(); closeOverlay(); }
-  else if (e.key === '+' || e.key === '=') zoomAroundCenter(1.2);
-  else if (e.key === '-' || e.key === '_') zoomAroundCenter(1 / 1.2);
-  else if (e.key === '0') fitToScreen();
+  else if (e.key === '+' || e.key === '=') pz.zoomIn();
+  else if (e.key === '-' || e.key === '_') pz.zoomOut();
+  else if (e.key === '0') pz.fit();
 }

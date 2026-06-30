@@ -134,6 +134,7 @@ public static class FilesEndpoints
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
+            db.Relations.RemoveRange(await db.Relations.Where(r => r.FromId == id || r.ToId == id).ToListAsync());
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
@@ -149,6 +150,7 @@ public static class FilesEndpoints
                 if (File.Exists(f.FullPath)) File.Delete(f.FullPath);
             }
             catch (Exception ex) { return Results.Problem("Could not delete file: " + ex.Message); }
+            db.Relations.RemoveRange(await db.Relations.Where(r => r.FromId == id || r.ToId == id).ToListAsync());
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();

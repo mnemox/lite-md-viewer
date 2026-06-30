@@ -1,9 +1,10 @@
 import { api } from './api.js';
-import { toast, confirmDialog, promptDialog } from './ui.js';
+import { toast, confirmDialog, promptDialog, detailsDialog } from './ui.js';
 import { renderMarkdown } from './render.js';
 import { applyTheme, currentTheme } from './theme.js';
 import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
+import { openRelations } from './relations.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -148,6 +149,19 @@ async function save() {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// ---------- file details ----------
+async function showDetails() {
+  if (!state.active) return;
+  try { detailsDialog(await api.details(state.active.id)); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+function showRelations() {
+  if (!state.active) return;
+  // The graph reloads the background document when a node is opened.
+  openRelations(state.active.id, (id) => openFile(id));
+}
+
 // ---------- remove / delete ----------
 async function removeFromList(file) {
   try {
@@ -255,6 +269,8 @@ async function init() {
   $('viewModeBtn').onclick = () => setMode('view');
   $('editModeBtn').onclick = () => setMode('edit');
   $('saveBtn').onclick = save;
+  $('detailsBtn').onclick = showDetails;
+  $('relationsBtn').onclick = showRelations;
   $('editorText').addEventListener('input', () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(() => renderMarkdown($('editorText').value, $('editorPreview')), 300);

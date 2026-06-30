@@ -31,7 +31,14 @@ export const api = {
   removeFile: (id) => req('DELETE', `/api/files/${id}`),
   deleteDisk: (id) => req('DELETE', `/api/files/${id}/disk`),
   content: (id) => req('GET', `/api/files/${id}/content`),
+  details: (id) => req('GET', `/api/files/${id}/details`),
   saveContent: (id, text) => req('PUT', `/api/files/${id}/content`, { text }),
+
+  // Relations (graph + companions)
+  graph: (id) => req('GET', `/api/files/${id}/graph`),
+  addRelation: (id, otherId, kind) => req('POST', `/api/files/${id}/relations`, { otherId, kind }),
+  removeRelation: (id, otherId, kind) =>
+    req('DELETE', `/api/files/${id}/relations?otherId=${otherId}&kind=${encodeURIComponent(kind)}`),
 
   folders: () => req('GET', '/api/folders'),
   addFolder: (name, parentId) => req('POST', '/api/folders', { name, parentId: parentId ?? null }),

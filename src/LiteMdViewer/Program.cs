@@ -25,6 +25,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+    EnsureRelationsTable(db); // EnsureCreated won't add tables to a pre-existing DB; do it idempotently
     SeedSettings(db);
     openBrowser = db.Settings.Find("openBrowserOnStart")?.Value == "true";
 }
@@ -37,6 +38,7 @@ app.MapFolders();
 app.MapContent();
 app.MapBrowse();
 app.MapSettings();
+app.MapRelations();
 
 app.MapFallbackToFile("index.html");
 
@@ -47,6 +49,23 @@ if (openBrowser)
 }
 
 app.Run();
+
+// Adds the Relations table to an already-created DB without a migration or reset.
+// On a fresh DB EnsureCreated already made it from the model, so this is a no-op;
+// on an existing DB (created before Relations existed) this adds it, preserving data.
+static void EnsureRelationsTable(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(
+        @"CREATE TABLE IF NOT EXISTS ""Relations"" (
+            ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_Relations"" PRIMARY KEY AUTOINCREMENT,
+            ""FromId"" INTEGER NOT NULL,
+            ""ToId"" INTEGER NOT NULL,
+            ""Kind"" TEXT NOT NULL,
+            ""CreatedUtc"" TEXT NOT NULL);");
+    db.Database.ExecuteSqlRaw(
+        @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Relations_FromId_ToId_Kind""
+          ON ""Relations"" (""FromId"", ""ToId"", ""Kind"");");
+}
 
 static void SeedSettings(AppDbContext db)
 {

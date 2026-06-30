@@ -9,6 +9,23 @@ public static class ContentEndpoints
     {
         var g = app.MapGroup("/api/files");
 
+        // File metadata for the details modal: on-disk created/modified timestamps
+        // and the full path. Dates are null when the file is gone from disk.
+        g.MapGet("/{id:int}/details", async (int id, AppDbContext db) =>
+        {
+            var f = await db.Files.FindAsync(id);
+            if (f is null) return Results.NotFound();
+
+            var exists = File.Exists(f.FullPath);
+            DateTime? created = null, modified = null;
+            if (exists)
+            {
+                created = File.GetCreationTimeUtc(f.FullPath);
+                modified = File.GetLastWriteTimeUtc(f.FullPath);
+            }
+            return Results.Ok(new FileDetailsDto(f.Id, f.Title, f.FullPath, created, modified, exists));
+        });
+
         // Raw markdown text for the viewer/editor. Tolerant read so it works even
         // if another process holds the file open.
         g.MapGet("/{id:int}/content", async (int id, AppDbContext db) =>
