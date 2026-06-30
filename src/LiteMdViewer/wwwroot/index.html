@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>md-manager</title>
+  <title>lite-md-viewer</title>
 
   <link rel="stylesheet" href="/vendor/highlight-github.min.css" id="hljs-light" />
   <link rel="stylesheet" href="/vendor/highlight-github-dark.min.css" id="hljs-dark" />
@@ -35,7 +35,6 @@
     </div>
     <div class="bar-right">
       <button id="saveBtn" class="btn primary hidden">Save</button>
-      <button id="lockBtn" class="icon-btn" title="Lock / unlock"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="11" width="15" height="9.5" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
       <button id="themeBtn" class="icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">🌙</button>
     </div>
   </header>
@@ -51,9 +50,6 @@
       <button id="drawerCloseBtn" class="icon-btn" title="Close menu" aria-label="Close menu">✕</button>
     </div>
     <nav id="tree" class="tree" aria-label="File tree"></nav>
-    <div class="drawer-foot">
-      <span class="hint">Files are locked from deletion until you unlock them here.</span>
-    </div>
   </aside>
   <div id="scrim" class="scrim" hidden></div>
 
@@ -62,10 +58,8 @@
       <div id="loading" class="loading hidden" role="status" aria-label="Loading"><span class="spinner" aria-hidden="true"></span></div>
 
       <section id="welcome" class="welcome">
-        <h1>md-manager</h1>
-        <p>View and edit Markdown files (including Mermaid diagrams). Files you add
-           are managed and <strong>locked from deletion</strong> until you unlock
-           them here.</p>
+        <h1>lite-md-viewer</h1>
+        <p>View and edit Markdown files (including Mermaid diagrams).</p>
         <button class="btn primary" id="welcomeAdd">+ Add a file</button>
       </section>
 

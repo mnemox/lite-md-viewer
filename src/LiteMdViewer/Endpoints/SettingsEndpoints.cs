@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using MdManager.Data;
-using MdManager.Models;
+using LiteMdViewer.Data;
+using LiteMdViewer.Models;
 
-namespace MdManager.Endpoints;
+namespace LiteMdViewer.Endpoints;
 
 public static class SettingsEndpoints
 {

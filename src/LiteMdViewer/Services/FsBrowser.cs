@@ -1,6 +1,6 @@
-using MdManager.Models;
+using LiteMdViewer.Models;
 
-namespace MdManager.Services;
+namespace LiteMdViewer.Services;
 
 /// <summary>
 /// Read-only server-side filesystem enumeration for the "Add file" picker.

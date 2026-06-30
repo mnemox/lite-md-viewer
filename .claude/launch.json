@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "mdmanager",
+      "name": "litemdviewer",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "src/MdManager/MdManager.csproj"],
+      "runtimeArgs": ["run", "--project", "src/LiteMdViewer/LiteMdViewer.csproj"],
       "port": 5099
     }
   ]

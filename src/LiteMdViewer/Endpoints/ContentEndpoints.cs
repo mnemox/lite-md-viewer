@@ -1,7 +1,7 @@
-using MdManager.Data;
-using MdManager.Models;
+using LiteMdViewer.Data;
+using LiteMdViewer.Models;
 
-namespace MdManager.Endpoints;
+namespace LiteMdViewer.Endpoints;
 
 public static class ContentEndpoints
 {
@@ -16,11 +16,7 @@ public static class ContentEndpoints
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
             if (!File.Exists(f.FullPath))
-            {
-                f.Status = FileStatus.Missing;
-                await db.SaveChangesAsync();
                 return Results.NotFound(new { error = "File is missing on disk." });
-            }
 
             string text;
             await using (var fs = new FileStream(f.FullPath, FileMode.Open, FileAccess.Read,
@@ -30,11 +26,10 @@ public static class ContentEndpoints
 
             f.LastOpenedUtc = DateTime.UtcNow;
             await db.SaveChangesAsync();
-            return Results.Ok(new ContentDto(f.Id, f.Title, f.FullPath, f.Status, text));
+            return Results.Ok(new ContentDto(f.Id, f.Title, f.FullPath, text));
         });
 
-        // Save edited content. In-place truncate-write (FileMode.Create) needs only
-        // write access, so it succeeds while the Deny-Delete ACE is applied.
+        // Save edited content via an in-place truncate-write (FileMode.Create).
         g.MapPut("/{id:int}/content", async (int id, SaveContentRequest req, AppDbContext db) =>
         {
             var f = await db.Files.FindAsync(id);

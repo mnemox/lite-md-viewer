@@ -76,11 +76,10 @@ body {
 .topbar .btn      { padding: 5px 11px; }
 
 /* file controls are hidden until a file is open */
-#fileTitle, #fileStatus, .topbar .seg, #lockBtn { display: none; }
+#fileTitle, #fileStatus, .topbar .seg { display: none; }
 body.file-open #fileTitle   { display: inline; }
 body.file-open #fileStatus  { display: inline; }
 body.file-open .topbar .seg { display: inline-flex; }
-body.file-open #lockBtn     { display: inline-flex; }
 body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMode's .hidden */
 
 /* narrow screens: drop title/badge so the centered View/Edit + actions still fit
@@ -105,9 +104,6 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 }
 .icon-btn:hover { background: var(--bg-elev-2); }
 .icon-btn svg { display: block; }
-/* lock state colors: locked = red, unlocked = green (clearly differentiated) */
-#lockBtn.locked { color: var(--danger); }
-#lockBtn.unlocked { color: var(--ok); }
 
 .btn {
   border: 1px solid var(--border);
@@ -155,8 +151,6 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
 }
 .drawer-head .icon-btn { flex: 0 0 auto; width: 28px; height: 28px; font-size: 14px; }
-.drawer-foot { padding: 10px 12px; border-block-start: 1px solid var(--border); }
-.hint { color: var(--text-dim); font-size: 12px; }
 
 .scrim {
   position: fixed;
@@ -195,8 +189,9 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   padding-inline: 4px;
 }
 .row .icon { flex: 0 0 auto; font-size: 14px; }
-.row .lock { flex: 0 0 auto; font-size: 13px; cursor: pointer; opacity: .85; }
-.row .lock:hover { opacity: 1; }
+/* a file has no caret, so its icon stands in the caret column (same 14px, centered)
+   to line up with the arrows of folders at the same level */
+.row .file-icon { width: 14px; text-align: center; }
 .row .kebab { flex: 0 0 auto; opacity: 0; font-size: 16px; color: var(--text-dim); padding-inline: 2px; }
 .row:hover .kebab { opacity: 1; }
 .children { margin-inline-start: 14px; border-inline-start: 1px solid var(--border); }
@@ -207,8 +202,6 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   border: 1px solid var(--border);
   color: var(--text-dim);
 }
-.badge.locked { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); }
-.badge.unlocked { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
 .badge.missing { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .tree-empty { color: var(--text-dim); padding: 14px 10px; font-size: 13px; }
 
