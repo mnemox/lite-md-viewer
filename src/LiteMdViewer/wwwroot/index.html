@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>lite-md-viewer</title>
+  <title>Lite MD Viewer</title>
 
   <link rel="stylesheet" href="/vendor/highlight-github.min.css" id="hljs-light" />
   <link rel="stylesheet" href="/vendor/highlight-github-dark.min.css" id="hljs-dark" />
@@ -29,9 +29,13 @@
       <span id="fileTitle" class="file-title" dir="auto"></span>
       <span id="fileStatus" class="badge"></span>
     </div>
-    <div class="seg" role="tablist">
-      <button id="viewModeBtn" class="seg-btn active" role="tab">View</button>
-      <button id="editModeBtn" class="seg-btn" role="tab">Edit</button>
+    <div class="bar-center">
+      <div class="seg" role="tablist">
+        <button id="viewModeBtn" class="seg-btn active" role="tab">View</button>
+        <button id="editModeBtn" class="seg-btn" role="tab">Edit</button>
+      </div>
+      <button id="detailsBtn" class="btn" title="File details">Details</button>
+      <button id="relationsBtn" class="btn" title="Document relations">Relations</button>
     </div>
     <div class="bar-right">
       <button id="saveBtn" class="btn primary hidden">Save</button>
@@ -58,7 +62,7 @@
       <div id="loading" class="loading hidden" role="status" aria-label="Loading"><span class="spinner" aria-hidden="true"></span></div>
 
       <section id="welcome" class="welcome">
-        <h1>lite-md-viewer</h1>
+        <h1>Lite MD Viewer</h1>
         <p>View and edit Markdown files (including Mermaid diagrams).</p>
         <button class="btn primary" id="welcomeAdd">+ Add a file</button>
       </section>

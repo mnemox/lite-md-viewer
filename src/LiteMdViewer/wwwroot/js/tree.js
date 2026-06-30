@@ -3,7 +3,7 @@
 
 const collapsed = new Set();      // folder ids the user collapsed (expanded by default)
 
-function popupMenu(anchor, items) {
+export function popupMenu(anchor, items) {
   document.querySelector('.popup-menu')?.remove();
   const menu = document.createElement('div');
   menu.className = 'popup-menu';

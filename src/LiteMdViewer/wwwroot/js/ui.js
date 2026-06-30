@@ -42,6 +42,60 @@ export function confirmDialog(message, { okLabel = 'OK', danger = false } = {}) 
   });
 }
 
+// Read-only file-details modal: shows the title, full path, and the file's
+// on-disk created / updated timestamps (formatted in local time).
+export function detailsDialog(d) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal';
+  const fmt = (iso) => {
+    if (!iso) return null;
+    const date = new Date(iso);
+    return isNaN(date) ? null : date.toLocaleString();
+  };
+  overlay.innerHTML = `
+    <div class="modal-card" style="width:min(560px,96vw)">
+      <div class="modal-head">
+        <strong>File details</strong>
+        <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
+      </div>
+      <dl class="details">
+        <dt>Name</dt><dd class="d-name" dir="auto"></dd>
+        <dt>Path</dt><dd class="d-path mono" dir="auto"></dd>
+        <dt>Created</dt><dd class="d-created"></dd>
+        <dt>Updated</dt><dd class="d-updated"></dd>
+      </dl>
+      <div class="modal-foot" style="justify-content:flex-end">
+        <button class="btn" data-act="copy">Copy path</button>
+        <button class="btn primary" data-act="close">Close</button>
+      </div>
+    </div>`;
+  overlay.querySelector('.d-name').textContent = d.title || '—';
+  overlay.querySelector('.d-path').textContent = d.fullPath || '—';
+  const created = overlay.querySelector('.d-created');
+  const updated = overlay.querySelector('.d-updated');
+  if (!d.exists) {
+    for (const el of [created, updated]) { el.textContent = 'file missing on disk'; el.classList.add('muted'); }
+  } else {
+    created.textContent = fmt(d.createdUtc) ?? '—';
+    updated.textContent = fmt(d.modifiedUtc) ?? '—';
+  }
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) return close();
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'close') close();
+    if (act === 'copy') {
+      navigator.clipboard?.writeText(d.fullPath || '')
+        .then(() => toast('Path copied', 'ok'))
+        .catch(() => toast('Could not copy path', 'error'));
+    }
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-act="close"]').focus();
+}
+
 // Styled single-line text prompt. Resolves to the trimmed value, or null if
 // cancelled / left empty.
 export function promptDialog(title, { okLabel = 'OK', placeholder = '', value = '' } = {}) {

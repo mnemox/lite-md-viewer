@@ -64,10 +64,10 @@ body {
   border-block-end: 1px solid var(--border);
   z-index: 40;
 }
-/* pin each group to its column so a hidden center .seg doesn't reflow the sides */
+/* pin each group to its column so a hidden center group doesn't reflow the sides */
 .bar-left  { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; } /* min-width:0 → title can truncate */
 .bar-right { grid-column: 3; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
-.topbar .seg { grid-column: 2; justify-self: center; }
+.topbar .bar-center { grid-column: 2; justify-self: center; align-items: center; gap: 8px; }
 .brand { font-weight: 650; letter-spacing: .2px; flex: 0 0 auto; }
 
 /* shrink controls to fit the slimmer 44px bar */
@@ -76,10 +76,10 @@ body {
 .topbar .btn      { padding: 5px 11px; }
 
 /* file controls are hidden until a file is open */
-#fileTitle, #fileStatus, .topbar .seg { display: none; }
+#fileTitle, #fileStatus, .topbar .bar-center { display: none; }
 body.file-open #fileTitle   { display: inline; }
 body.file-open #fileStatus  { display: inline; }
-body.file-open .topbar .seg { display: inline-flex; }
+body.file-open .topbar .bar-center { display: inline-flex; }
 body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMode's .hidden */
 
 /* narrow screens: drop title/badge so the centered View/Edit + actions still fit
@@ -331,6 +331,40 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .browse-list li.disabled { opacity: .45; cursor: not-allowed; }
 .browse-list li .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
 .modal-foot { display: flex; gap: 8px; padding: 12px 16px; border-block-start: 1px solid var(--border); }
+
+/* file-details definition list */
+.details { margin: 0; padding: 16px 18px; display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; align-items: baseline; overflow: auto; }
+.details dt { color: var(--text-dim); font-size: 13px; }
+.details dd { margin: 0; word-break: break-word; }
+.details dd.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.details dd.muted { color: var(--text-dim); }
+
+/* ---------- relations modal ---------- */
+.modal-card.wide { width: min(960px, 96vw); height: min(82vh, 760px); }
+.modal-head .rel-hint { color: var(--text-dim); font-size: 12px; margin-inline-start: 12px; }
+.relations { flex: 1 1 auto; min-height: 0; display: flex; }
+.rel-graph { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; background: var(--bg-elev); }
+.rel-toolbar { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 2; display: flex; gap: 4px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: var(--shadow); }
+.rel-toolbar .icon-btn { width: 28px; height: 28px; font-size: 15px; }
+.rel-viewport { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+.rel-viewport.grabbing { cursor: grabbing; }
+.rel-stage { position: absolute; inset-block-start: 0; inset-inline-start: 0; transform-origin: 0 0; will-change: transform; }
+.rel-stage g.node { cursor: pointer; }
+/* override mermaid's inline node stroke for the active document */
+.rel-stage g.node.rel-active rect,
+.rel-stage g.node.rel-active polygon,
+.rel-stage g.node.rel-active circle,
+.rel-stage g.node.rel-active path { stroke: var(--accent) !important; stroke-width: 3px !important; }
+.rel-error { padding: 24px; color: var(--text-dim); }
+
+.rel-companions { flex: 0 0 244px; min-height: 0; display: flex; flex-direction: column; border-inline-start: 1px solid var(--border); }
+.rel-comp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 14px; border-block-end: 1px solid var(--border); }
+.rel-comp-head .btn { padding: 4px 9px; }
+.rel-comp-list li .name { cursor: pointer; }
+.rel-rm { width: 24px; height: 24px; font-size: 13px; opacity: .55; flex: 0 0 auto; }
+.rel-comp-list li:hover .rel-rm { opacity: 1; }
 
 /* ---------- toasts ---------- */
 .toasts {
