@@ -22,6 +22,8 @@ let activeId = null;    // current background/active document
 let onNavigate = null;  // callback(id) → host reloads the background document
 let current = null;     // last graph response
 let layout = null;      // last computeLayout result
+let attachments = [];   // export bundles for the active document
+let exporting = false;  // guard against concurrent exports
 
 // Open the relations modal for a document. `navigateCb(id)` reloads the host viewer.
 export async function openRelations(fileId, navigateCb) {
@@ -41,6 +43,8 @@ function buildModal() {
       <div class="modal-head">
         <strong>Relations</strong>
         <span class="rel-hint">Single-click a node to link · double-click to open · click an edge to remove it</span>
+        <button class="btn rel-export-btn" data-act="export" title="Export this graph as a downloadable bundle">Export</button>
+        <a class="icon-btn rel-download-btn hidden" download title="Download the latest export" aria-label="Download the latest export"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></a>
         <div class="seg rel-modes">
           <button class="seg-btn active" data-act="mode-2d">2D</button>
           <button class="seg-btn" data-act="mode-3d">3D</button>
@@ -63,6 +67,10 @@ function buildModal() {
             <button class="btn" data-act="add-companion">+ Add</button>
           </div>
           <ul class="browse-list rel-comp-list"></ul>
+          <div class="rel-attachments hidden">
+            <div class="rel-attach-head"><strong>Attachments</strong></div>
+            <ul class="browse-list rel-attach-list"></ul>
+          </div>
         </aside>
       </div>
     </div>`;
@@ -75,6 +83,7 @@ function buildModal() {
     else if (act === 'out') zoomOut();
     else if (act === 'fit') fitView();
     else if (act === 'add-companion') addRelationFlow('companion', activeId);
+    else if (act === 'export') startExport();
     else if (act === 'mode-2d') setMode('2d');
     else if (act === 'mode-3d') setMode('3d');
   });
@@ -126,6 +135,8 @@ async function refresh() {
   layout = computeLayout(graph);
   renderActive();
   renderCompanions(graph.companions);
+  try { attachments = await api.attachments(activeId); } catch { attachments = []; }
+  renderAttachments(attachments);
 }
 
 function renderActive() {
@@ -261,6 +272,136 @@ async function navigateTo(fid) {
   activeId = fid;
   if (onNavigate) { try { await onNavigate(fid); } catch { /* host reported it */ } }
   await refresh();
+}
+
+// ---- export / attachments ----
+// Deterministic copied-file name — MUST match the server's C# Slug/ExportFileName.
+const slug = (t) => (String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'doc');
+const exportFileName = (n) => `${n.id}-${slug(n.title)}.md`;
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function formatSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function startExport() {
+  if (exporting || !current) return;
+  exporting = true;
+  const btn = overlay.querySelector('.rel-export-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
+  try {
+    await api.export(activeId, buildExportHtml(current, layout));
+    await refresh();
+    toast('Exported', 'ok');
+  } catch (e) { toast(e.message, 'error'); }
+  finally { exporting = false; if (btn) { btn.disabled = false; btn.textContent = 'Export'; } }
+}
+
+// A standalone index.html: a references list + the same 2D graph (literal colors,
+// nodes link to the copied .md files sitting beside it).
+function buildExportHtml(graph, layout) {
+  const { pos2d, bounds } = layout;
+  const minX = bounds.minX - NODE_W / 2 - PAD, maxX = bounds.maxX + NODE_W / 2 + PAD;
+  const minY = bounds.minY - NODE_H / 2 - PAD, maxY = bounds.maxY + NODE_H / 2 + PAD;
+  const W = Math.max(maxX - minX, 1), H = Math.max(maxY - minY, 1);
+  const C = { node: '#ffffff', stroke: '#d0d3d9', active: '#2f6fed', text: '#1f2328', missing: '#d64541', edge: '#6b7280' };
+
+  let edgeSvg = '';
+  for (const e of graph.edges) {
+    const a = pos2d.get(e.fromId), b = pos2d.get(e.toId);
+    if (!a || !b) continue;
+    if (e.kind === 'reference') {
+      const dir = Math.sign(b.y - a.y) || 1;
+      edgeSvg += `<path d="M ${a.x} ${a.y + dir * NODE_H / 2} L ${b.x} ${b.y - dir * NODE_H / 2}" fill="none" stroke="${C.edge}" stroke-width="1.6" marker-end="url(#arr)"/>`;
+    } else {
+      const cx = (a.x + b.x) / 2, cy = a.y + NODE_H / 2 + 38;
+      edgeSvg += `<path d="M ${a.x} ${a.y + NODE_H / 2} Q ${cx} ${cy} ${b.x} ${b.y + NODE_H / 2}" fill="none" stroke="${C.edge}" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+    }
+  }
+  let nodeSvg = '';
+  for (const n of graph.nodes) {
+    const p = pos2d.get(n.id); if (!p) continue;
+    const x = p.x - NODE_W / 2, y = p.y - NODE_H / 2;
+    const stroke = n.id === graph.activeId ? C.active : C.stroke;
+    const sw = n.id === graph.activeId ? 2.5 : 1.5;
+    const fill = n.missing ? C.missing : C.text;
+    const inner = `<g transform="translate(${x} ${y})"><rect width="${NODE_W}" height="${NODE_H}" rx="8" ry="8" fill="${C.node}" stroke="${stroke}" stroke-width="${sw}"/>`
+      + `<text x="${NODE_W / 2}" y="${NODE_H / 2}" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif" font-size="13" fill="${fill}">${esc(truncate(n.title) || ('#' + n.id))}</text></g>`;
+    nodeSvg += n.missing ? inner : `<a href="${exportFileName(n)}" target="_top">${inner}</a>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${W} ${H}" width="${W}" height="${H}" style="max-width:100%;height:auto">`
+    + `<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="${C.edge}"/></marker></defs>`
+    + `<g>${edgeSvg}</g><g>${nodeSvg}</g></svg>`;
+
+  const active = graph.nodes.find((n) => n.id === graph.activeId);
+  const title = esc(active ? active.title : 'Graph');
+  const refs = graph.nodes.map((n) => n.missing
+    ? `<li><span class="missing">${esc(n.title)} (missing)</span></li>`
+    : `<li><a href="${exportFileName(n)}">${esc(n.title || ('#' + n.id))}</a></li>`).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>${title} — graph export</title>
+<style>
+  html{background:#ffffff}
+  body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f2328;background:#ffffff;max-width:1000px;margin:24px auto;padding:0 16px}
+  a{color:#2f6fed}
+  h1{font-size:22px} h2{font-size:16px;margin-top:28px;border-bottom:1px solid #e3e5e8;padding-bottom:4px}
+  ul.refs{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+  ul.refs li a{display:inline-block;padding:4px 10px;border:1px solid #d0d3d9;border-radius:8px;text-decoration:none;color:#1f2328;background:#f7f7f8}
+  ul.refs li a:hover{border-color:#2f6fed}
+  .missing{color:#d64541}
+  .graph{margin-top:8px;border:1px solid #e3e5e8;border-radius:10px;padding:8px;overflow:auto;background:#fbfbfc}
+  .graph a{cursor:pointer}
+</style></head>
+<body>
+  <h1>${title} — relations graph</h1>
+  <h2>Documents</h2>
+  <ul class="refs">${refs}</ul>
+  <h2>Graph</h2>
+  <div class="graph">${svg}</div>
+</body></html>`;
+}
+
+function renderAttachments(list) {
+  const section = overlay.querySelector('.rel-attachments');
+  const ul = overlay.querySelector('.rel-attach-list');
+  ul.innerHTML = '';
+  section.classList.toggle('hidden', !list.length);
+
+  // Head "Download" button → the most recent export (list is newest-first).
+  const dl = overlay.querySelector('.rel-download-btn');
+  if (list.length) {
+    dl.href = api.attachmentUrl(list[0].id);
+    dl.setAttribute('download', list[0].fileName);
+    dl.classList.remove('hidden');
+  } else {
+    dl.removeAttribute('href');
+    dl.classList.add('hidden');
+  }
+
+  for (const a of list) {
+    const li = document.createElement('li');
+    const icon = document.createElement('span'); icon.textContent = '📦';
+    const link = document.createElement('a');
+    link.className = 'name'; link.href = api.attachmentUrl(a.id); link.textContent = a.fileName;
+    link.setAttribute('download', a.fileName);
+    link.title = `${a.nodeCount} document(s) · ${formatSize(a.sizeBytes)}`;
+    const rm = document.createElement('button');
+    rm.className = 'icon-btn rel-rm'; rm.textContent = '✕'; rm.title = 'Delete export';
+    rm.onclick = (e) => { e.stopPropagation(); deleteAttachment(a.id, a.fileName); };
+    li.append(icon, link, rm);
+    ul.appendChild(li);
+  }
+}
+
+async function deleteAttachment(attId, name) {
+  if (!(await confirmDialog(`Delete export “${name}”? This removes the downloadable file.`, { okLabel: 'Delete', danger: true }))) return;
+  try { await api.deleteAttachment(attId); await refresh(); toast('Deleted', 'ok'); }
+  catch (e) { toast(e.message, 'error'); }
 }
 
 // ---- companions ----

@@ -25,7 +25,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
-    EnsureRelationsTable(db); // EnsureCreated won't add tables to a pre-existing DB; do it idempotently
+    EnsureRelationsTable(db);   // EnsureCreated won't add tables to a pre-existing DB; do it idempotently
+    EnsureAttachmentsTable(db);
     SeedSettings(db);
     openBrowser = db.Settings.Find("openBrowserOnStart")?.Value == "true";
 }
@@ -39,6 +40,7 @@ app.MapContent();
 app.MapBrowse();
 app.MapSettings();
 app.MapRelations();
+app.MapAttachments();
 
 app.MapFallbackToFile("index.html");
 
@@ -65,6 +67,22 @@ static void EnsureRelationsTable(AppDbContext db)
     db.Database.ExecuteSqlRaw(
         @"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_Relations_FromId_ToId_Kind""
           ON ""Relations"" (""FromId"", ""ToId"", ""Kind"");");
+}
+
+// Adds the Attachments table to an already-created DB without a migration or reset.
+static void EnsureAttachmentsTable(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(
+        @"CREATE TABLE IF NOT EXISTS ""Attachments"" (
+            ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_Attachments"" PRIMARY KEY AUTOINCREMENT,
+            ""FileId"" INTEGER NOT NULL,
+            ""FileName"" TEXT NOT NULL,
+            ""StoredName"" TEXT NOT NULL,
+            ""SizeBytes"" INTEGER NOT NULL,
+            ""NodeCount"" INTEGER NOT NULL,
+            ""CreatedUtc"" TEXT NOT NULL);");
+    db.Database.ExecuteSqlRaw(
+        @"CREATE INDEX IF NOT EXISTS ""IX_Attachments_FileId"" ON ""Attachments"" (""FileId"");");
 }
 
 static void SeedSettings(AppDbContext db)
