@@ -6,7 +6,8 @@ into folders, and edit them in place.
 
 - Backend: **ASP.NET Core (.NET 8)**, minimal APIs, SQLite (EF Core).
 - Frontend: vanilla HTML/CSS/JS (no framework), with `markdown-it` + `mermaid` +
-  `highlight.js` + `DOMPurify` vendored locally (works fully offline).
+  `highlight.js` + `DOMPurify` + `three.js` (3D relations view) vendored locally
+  (works fully offline).
 - Runs over **HTTP on loopback only** (`http://127.0.0.1:5099`) — no HTTPS, no auth,
   single local user.
 
@@ -78,4 +79,5 @@ curl -fsSL https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js          
 curl -fsSL https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js          -o highlight.min.js
 curl -fsSL https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css      -o highlight-github.min.css
 curl -fsSL https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css -o highlight-github-dark.min.css
+curl -fsSL https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js                           -o three.min.js
 ```

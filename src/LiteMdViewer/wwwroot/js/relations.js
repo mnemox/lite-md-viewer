@@ -1,27 +1,33 @@
 // Document-relations modal: an interactive graph of the active document's connected
-// network (reference parent/child + same-level edges) plus a companions list. Single-
-// click a node to add a parent/child/same-level link; double-click to open it as the
-// background document. Graph layout is Mermaid; pan/zoom is the shared createPanZoom.
+// network (reference parent/child + same-level edges) plus a companions list. Renders
+// a custom layered 2D SVG (same-level nodes share a row) with a 2D/3D toggle; the 3D
+// view (graph3d.js) shares the same interactions. Single-click a node to link, double-
+// click to open it as the background document, click an edge to remove it.
 
 import { api } from './api.js';
 import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
+import { computeLayout } from './graphlayout.js';
+import { createGraph3d } from './graph3d.js';
+
+const SVGNS = 'http://www.w3.org/2000/svg';
+const NODE_W = 144, NODE_H = 38, PAD = 64;
 
 let overlay = null;     // modal overlay element (singleton while open)
-let pz = null;          // pan/zoom controller for the graph
+let pz = null;          // 2D pan/zoom controller
+let g3d = null;         // 3D controller (lazy)
+let mode = '2d';        // '2d' | '3d'
 let activeId = null;    // current background/active document
 let onNavigate = null;  // callback(id) → host reloads the background document
-let current = null;     // last graph response { activeId, nodes, edges, companions }
-let seq = 0;            // unique id seed for mermaid.render
-
-const themeFromDom = () =>
-  document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default';
+let current = null;     // last graph response
+let layout = null;      // last computeLayout result
 
 // Open the relations modal for a document. `navigateCb(id)` reloads the host viewer.
 export async function openRelations(fileId, navigateCb) {
   activeId = fileId;
   onNavigate = navigateCb;
+  mode = '2d';
   buildModal();
   await refresh();
 }
@@ -34,7 +40,11 @@ function buildModal() {
     <div class="modal-card wide relations-card">
       <div class="modal-head">
         <strong>Relations</strong>
-        <span class="rel-hint">Single-click a node to link · double-click to open · click an arrow to remove it</span>
+        <span class="rel-hint">Single-click a node to link · double-click to open · click an edge to remove it</span>
+        <div class="seg rel-modes">
+          <button class="seg-btn active" data-act="mode-2d">2D</button>
+          <button class="seg-btn" data-act="mode-3d">3D</button>
+        </div>
         <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
       </div>
       <div class="relations">
@@ -45,6 +55,7 @@ function buildModal() {
             <button type="button" class="icon-btn" data-act="in"  title="Zoom in">+</button>
           </div>
           <div class="rel-viewport"><div class="rel-stage"></div></div>
+          <div class="rel-3d hidden"></div>
         </div>
         <aside class="rel-companions">
           <div class="rel-comp-head">
@@ -60,34 +71,51 @@ function buildModal() {
     if (e.target === overlay) return closeModal();
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'close') closeModal();
-    else if (act === 'in') pz?.zoomIn();
-    else if (act === 'out') pz?.zoomOut();
-    else if (act === 'fit') pz?.fit();
+    else if (act === 'in') zoomIn();
+    else if (act === 'out') zoomOut();
+    else if (act === 'fit') fitView();
     else if (act === 'add-companion') addRelationFlow('companion', activeId);
+    else if (act === 'mode-2d') setMode('2d');
+    else if (act === 'mode-3d') setMode('3d');
   });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(overlay);
 
   const viewport = overlay.querySelector('.rel-viewport');
   const stage = overlay.querySelector('.rel-stage');
-  // maxFitScale: 1 → never blow a small graph up past 100% on load.
-  pz = createPanZoom(viewport, stage, { skipSelector: '.node, .rel-edge-hit', maxFitScale: 1 });
+  pz = createPanZoom(viewport, stage, { skipSelector: '.rel-node, .rel-edge-hit', maxFitScale: 1 });
 }
 
 function onKey(e) {
   if (!overlay) return;
   if (document.querySelector('.pick-list') || document.querySelector('.popup-menu')) return; // nested UI owns keys
   if (e.key === 'Escape') { e.stopPropagation(); closeModal(); }
-  else if (e.key === '+' || e.key === '=') pz?.zoomIn();
-  else if (e.key === '-' || e.key === '_') pz?.zoomOut();
-  else if (e.key === '0') pz?.fit();
+  else if (e.key === '+' || e.key === '=') zoomIn();
+  else if (e.key === '-' || e.key === '_') zoomOut();
+  else if (e.key === '0') fitView();
 }
 
 function closeModal() {
   if (!overlay) return;
   document.removeEventListener('keydown', onKey);
+  g3d?.dispose(); g3d = null;
   overlay.remove();
-  overlay = null; pz = null; current = null;
+  overlay = null; pz = null; current = null; layout = null;
+}
+
+// toolbar/keys dispatch to whichever renderer is active
+function zoomIn()  { mode === '3d' ? g3d?.zoomIn()  : pz?.zoomIn(); }
+function zoomOut() { mode === '3d' ? g3d?.zoomOut() : pz?.zoomOut(); }
+function fitView() { mode === '3d' ? g3d?.fit()     : pz?.fit(); }
+
+function setMode(m) {
+  if (m === mode || !overlay) return;
+  mode = m;
+  overlay.querySelector('[data-act="mode-2d"]').classList.toggle('active', m === '2d');
+  overlay.querySelector('[data-act="mode-3d"]').classList.toggle('active', m === '3d');
+  overlay.querySelector('.rel-viewport').classList.toggle('hidden', m !== '2d');
+  overlay.querySelector('.rel-3d').classList.toggle('hidden', m !== '3d');
+  renderActive();
 }
 
 async function refresh() {
@@ -95,108 +123,129 @@ async function refresh() {
   try { graph = await api.graph(activeId); }
   catch (e) { toast(e.message, 'error'); return; }
   current = graph;
-  await renderGraph(graph);
+  layout = computeLayout(graph);
+  renderActive();
   renderCompanions(graph.companions);
 }
 
-// ---- graph ----
-function sanitize(s) {
-  return String(s || '').replace(/"/g, "'").replace(/[\r\n]+/g, ' ').trim();
-}
-
-function buildMermaid(graph) {
-  const lines = ['flowchart TD'];
-  for (const n of graph.nodes) lines.push(`  n${n.id}["${sanitize(n.title) || '#' + n.id}"]`);
-  for (const e of graph.edges) {
-    if (e.kind === 'reference') lines.push(`  n${e.fromId} --> n${e.toId}`);
-    else lines.push(`  n${e.fromId} --- n${e.toId}`); // sibling (same-level)
+function renderActive() {
+  if (!current || !overlay) return;
+  if (mode === '3d') {
+    if (!g3d) g3d = createGraph3d(overlay.querySelector('.rel-3d'), callbacks);
+    g3d.render(current, layout);
+    requestAnimationFrame(() => g3d && g3d.resize()); // container just became visible
+  } else {
+    render2d(current, layout);
   }
-  return lines.join('\n');
 }
 
-async function renderGraph(graph) {
+// ---- 2D SVG renderer ----
+const truncate = (s, n = 18) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+function svgEl(name, attrs = {}) {
+  const el = document.createElementNS(SVGNS, name);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function render2d(graph, layout) {
   const stage = overlay.querySelector('.rel-stage');
-  try {
-    window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: themeFromDom() });
-    const { svg } = await window.mermaid.render('relgraph' + (++seq), buildMermaid(graph));
-    stage.innerHTML = svg;
-  } catch (e) {
-    console.error('relations graph render failed', e);
-    stage.innerHTML = '<div class="rel-error">Could not render the graph.</div>';
-    return;
+  stage.innerHTML = '';
+  const { pos2d, bounds } = layout;
+  const minX = bounds.minX - NODE_W / 2 - PAD, maxX = bounds.maxX + NODE_W / 2 + PAD;
+  const minY = bounds.minY - NODE_H / 2 - PAD, maxY = bounds.maxY + NODE_H / 2 + PAD;
+  const W = Math.max(maxX - minX, 1), H = Math.max(maxY - minY, 1);
+
+  const svg = svgEl('svg', { class: 'rel-svg', viewBox: `${minX} ${minY} ${W} ${H}`, width: W, height: H });
+  svg.style.maxWidth = 'none';
+  svg.innerHTML = '<defs><marker id="rel-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" style="fill: var(--text-dim)"/></marker></defs>';
+  const edgesG = svgEl('g', { class: 'rel-edges' });
+  const nodesG = svgEl('g', { class: 'rel-nodes' });
+  svg.append(edgesG, nodesG);
+
+  for (const e of graph.edges) {
+    const a = pos2d.get(e.fromId), b = pos2d.get(e.toId);
+    if (!a || !b) continue;
+    let d, cls;
+    if (e.kind === 'reference') {
+      const dir = Math.sign(b.y - a.y) || 1;            // parent → child
+      d = `M ${a.x} ${a.y + dir * NODE_H / 2} L ${b.x} ${b.y - dir * NODE_H / 2}`;
+      cls = 'rel-edge rel-edge-ref';
+    } else {
+      const cx = (a.x + b.x) / 2, cy = a.y + NODE_H / 2 + 38; // same row → dip below
+      d = `M ${a.x} ${a.y + NODE_H / 2} Q ${cx} ${cy} ${b.x} ${b.y + NODE_H / 2}`;
+      cls = 'rel-edge rel-edge-sib';
+    }
+    const path = svgEl('path', { class: cls, d, fill: 'none' });
+    if (e.kind === 'reference') path.setAttribute('marker-end', 'url(#rel-arrow)');
+    edgesG.appendChild(path);
+
+    const hit = svgEl('path', { class: 'rel-edge-hit', d, fill: 'none', stroke: 'transparent', 'stroke-width': '16' });
+    hit.style.cursor = 'pointer'; hit.style.pointerEvents = 'stroke';
+    hit.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (pz.wasDragged()) return;
+      callbacks.edgeMenu(e, ev.clientX, ev.clientY);
+    });
+    edgesG.appendChild(hit);
   }
-  const svgEl = stage.querySelector('svg');
-  if (svgEl) svgEl.style.maxWidth = 'none';
-  wireNodes(graph);
-  wireEdges(graph);
+
+  for (const n of graph.nodes) {
+    const p = pos2d.get(n.id); if (!p) continue;
+    const g = svgEl('g', {
+      class: 'rel-node' + (n.id === graph.activeId ? ' rel-active' : '') + (n.missing ? ' rel-missing' : ''),
+      'data-id': n.id,
+      transform: `translate(${p.x - NODE_W / 2} ${p.y - NODE_H / 2})`,
+    });
+    g.style.cursor = 'pointer';
+    g.append(
+      svgEl('rect', { class: 'rel-node-box', width: NODE_W, height: NODE_H, rx: 8, ry: 8 }),
+      Object.assign(svgEl('text', {
+        class: 'rel-node-label', x: NODE_W / 2, y: NODE_H / 2,
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }), { textContent: truncate(n.title) || ('#' + n.id) }),
+      Object.assign(svgEl('title'), { textContent: n.title || ('#' + n.id) }),
+    );
+    let clickTimer = null;
+    g.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (pz.wasDragged()) return;
+      clearTimeout(clickTimer);
+      const x = ev.clientX, y = ev.clientY;
+      clickTimer = setTimeout(() => { if (overlay) callbacks.nodeMenu(n.id, x, y); }, 220);
+    });
+    g.addEventListener('dblclick', (ev) => {
+      ev.stopPropagation(); clearTimeout(clickTimer);
+      if (pz.wasDragged()) return;
+      callbacks.navigate(n.id);
+    });
+    nodesG.appendChild(g);
+  }
+
+  stage.appendChild(svg);
   requestAnimationFrame(() => pz.fit());
 }
 
-function nodeIdFromEl(el) {
-  const m = (el.id || '').match(/n(\d+)/);
-  return m ? Number(m[1]) : null;
-}
+// ---- shared interactions (used by both 2D and 3D) ----
+// popupMenu wants an element with getBoundingClientRect; fake one at the click point.
+const anchorAt = (x, y) => ({ getBoundingClientRect: () => ({ left: x, right: x, top: y, bottom: y, width: 0, height: 0 }) });
 
-function wireNodes(graph) {
-  const stage = overlay.querySelector('.rel-stage');
-  stage.querySelectorAll('g.node').forEach((el) => {
-    const fid = nodeIdFromEl(el);
-    if (fid == null) return;
-    if (fid === graph.activeId) el.classList.add('rel-active');
-    el.style.cursor = 'pointer';
-    let clickTimer = null;
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (pz.wasDragged()) return;
-      clearTimeout(clickTimer);
-      clickTimer = setTimeout(() => { if (overlay) openNodeMenu(el, fid); }, 220); // wait out a dblclick
-    });
-    el.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      clearTimeout(clickTimer);
-      if (pz.wasDragged()) return;
-      navigateTo(fid);
-    });
-  });
-}
-
-// Match a rendered edge <path> to its graph edge — by the node ids in its id, with an
-// order-based fallback (mermaid renders edges in declaration order).
-function edgeForPath(p, graph, index) {
-  const ids = (p.id || '').match(/n(\d+)/g);
-  if (ids && ids.length >= 2) {
-    const a = Number(ids[0].slice(1)), b = Number(ids[1].slice(1));
-    const found = graph.edges.find((e) => (e.fromId === a && e.toId === b) || (e.fromId === b && e.toId === a));
-    if (found) return found;
-  }
-  return graph.edges[index] || null;
-}
-
-function wireEdges(graph) {
-  const stage = overlay.querySelector('.rel-stage');
-  stage.querySelectorAll('g.edgePaths > path').forEach((p, i) => {
-    const edge = edgeForPath(p, graph, i);
-    if (!edge) return;
-    // A fat transparent overlay makes the thin arrow easy to click.
-    const hit = p.cloneNode(false);
-    hit.removeAttribute('id');
-    hit.removeAttribute('marker-end');
-    hit.removeAttribute('marker-start');
-    hit.removeAttribute('class');
-    hit.setAttribute('fill', 'none');
-    hit.setAttribute('stroke', 'transparent');
-    hit.setAttribute('stroke-width', '14');
-    hit.classList.add('rel-edge-hit');
-    hit.style.cursor = 'pointer';
-    hit.style.pointerEvents = 'stroke';
-    hit.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (pz.wasDragged()) return;
-      popupMenu(hit, [{ label: 'Remove connection', danger: true, onClick: () => removeEdge(edge) }]);
-    });
-    p.parentNode.appendChild(hit);
-  });
-}
+const callbacks = {
+  navigate: (id) => navigateTo(id),
+  nodeMenu: (fid, x, y) => {
+    const items = [
+      { label: 'Add parent…',     onClick: () => addRelationFlow('parent', fid) },
+      { label: 'Add child…',      onClick: () => addRelationFlow('child', fid) },
+      { label: 'Add same-level…', onClick: () => addRelationFlow('sibling', fid) },
+    ];
+    if (fid !== activeId) items.push({ label: 'Open this document', onClick: () => navigateTo(fid) });
+    items.push({ label: 'Remove from graph', danger: true, onClick: () => removeNode(fid) });
+    popupMenu(anchorAt(x, y), items);
+  },
+  edgeMenu: (edge, x, y) => {
+    popupMenu(anchorAt(x, y), [{ label: 'Remove connection', danger: true, onClick: () => removeEdge(edge) }]);
+  },
+};
 
 async function removeEdge(edge) {
   try {
@@ -207,23 +256,11 @@ async function removeEdge(edge) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-function openNodeMenu(el, fid) {
-  const items = [
-    { label: 'Add parent…',     onClick: () => addRelationFlow('parent', fid) },
-    { label: 'Add child…',      onClick: () => addRelationFlow('child', fid) },
-    { label: 'Add same-level…', onClick: () => addRelationFlow('sibling', fid) },
-  ];
-  if (fid !== activeId) items.push({ label: 'Open this document', onClick: () => navigateTo(fid) });
-  items.push({ label: 'Remove from graph', danger: true, onClick: () => removeNode(fid) });
-  popupMenu(el, items);
-}
-
-// ---- navigation ----
 async function navigateTo(fid) {
   if (fid === activeId) return;
   activeId = fid;
   if (onNavigate) { try { await onNavigate(fid); } catch { /* host reported it */ } }
-  await refresh(); // same component → graph unchanged; updates active highlight + companions
+  await refresh();
 }
 
 // ---- companions ----
