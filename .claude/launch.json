@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mdmanager",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/MdManager/MdManager.csproj"],
+      "port": 5099
+    }
+  ]
+}
