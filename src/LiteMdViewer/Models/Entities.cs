@@ -24,39 +24,64 @@ public class ManagedFile
 }
 
 /// <summary>
-/// A typed link between two managed files. Kinds:
-///  - "reference": directed; <c>FromId</c> = parent/referencing, <c>ToId</c> = child/referenced.
-///  - "sibling":   undirected same-level peer (stored canonical FromId &lt;= ToId).
-///  - "companion": undirected association, shown as a list (stored canonical FromId &lt;= ToId).
+/// An explicit graph: a connected group of documents that owns the references/siblings
+/// between them, the companion documents associated with it, and the export attachments.
+/// A document belongs to at most one graph (via <see cref="GraphMember"/>).
 /// </summary>
-public class Relation
+public class Graph
 {
     public int Id { get; set; }
-    public int FromId { get; set; }
-    public int ToId { get; set; }
-    public string Kind { get; set; } = "";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 
-public static class RelationKind
+/// <summary>Links a document to its graph (the document → graph table).</summary>
+public class GraphMember
 {
-    public const string Reference = "reference";
-    public const string Sibling = "sibling";
-    public const string Companion = "companion";
+    public int Id { get; set; }
+    public int GraphId { get; set; }
+    public int FileId { get; set; }   // unique: a document is a member of at most one graph
 }
 
 /// <summary>
-/// A downloadable export bundle (a zip of a graph component: the copied .md files +
-/// a generated index.html). Tied to the document the export was triggered from.
+/// A typed edge between two member documents of a graph.
+///  - "reference": directed; <c>FromId</c> = parent/referencing, <c>ToId</c> = child/referenced.
+///  - "sibling":   undirected same-level peer (stored canonical FromId &lt;= ToId).
+/// </summary>
+public class GraphEdge
+{
+    public int Id { get; set; }
+    public int GraphId { get; set; }
+    public int FromId { get; set; }
+    public int ToId { get; set; }
+    public string Kind { get; set; } = "";
+}
+
+public static class GraphEdgeKind
+{
+    public const string Reference = "reference";
+    public const string Sibling = "sibling";
+}
+
+/// <summary>A companion document associated with a graph (a "see also", not a graph node).</summary>
+public class GraphCompanion
+{
+    public int Id { get; set; }
+    public int GraphId { get; set; }
+    public int FileId { get; set; }
+}
+
+/// <summary>
+/// A downloadable export bundle (a zip of a graph: the copied .md files + a generated
+/// index.html). Belongs to the graph, so it is visible from any of the graph's members.
 /// </summary>
 public class Attachment
 {
     public int Id { get; set; }
-    public int FileId { get; set; }                 // the document the export was made from
-    public string FileName { get; set; } = "";      // display/download name, e.g. "intro-graph.zip"
+    public int GraphId { get; set; }                // the graph this export was made from
+    public string FileName { get; set; } = "";      // display/download name, e.g. "30-06-2026_18-04-UTC.zip"
     public string StoredName { get; set; } = "";    // on-disk name under attachments/, e.g. "<guid>.zip"
     public long SizeBytes { get; set; }
-    public int NodeCount { get; set; }              // documents in the exported component
+    public int NodeCount { get; set; }              // documents in the exported graph
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 

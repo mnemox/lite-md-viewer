@@ -12,18 +12,18 @@ public static class AttachmentsEndpoints
     {
         var g = app.MapGroup("/api/files");
 
-        // Export the active document's whole graph component as a downloadable zip:
-        // copy each component .md file + the client-built index.html into a folder, zip
-        // it, store it under attachments/, and record a persistent Attachment row.
-        g.MapPost("/{id:int}/export", async (int id, ExportRequest req, AppDbContext db, IWebHostEnvironment env) =>
+        // Export the active document's whole graph as a downloadable zip: copy each member
+        // .md file + the client-built index.html into a folder, zip it, store it under
+        // attachments/, and record a persistent Attachment row owned by the graph.
+        g.MapPost("/{id:int}/export", async (int id, ExportRequest req, AppDbContext db, GraphService graph, IWebHostEnvironment env) =>
         {
             var file = await db.Files.FindAsync(id);
             if (file is null) return Results.NotFound();
             if (string.IsNullOrWhiteSpace(req.IndexHtml))
                 return Results.BadRequest(new { error = "Missing index.html content." });
 
-            var (comp, _, byId) = await GraphHelper.ComponentAsync(db, id);
-            var docs = comp.Where(byId.ContainsKey).Select(i => byId[i])
+            var gid = await graph.GetOrCreateGraphAsync(id);
+            var docs = (await graph.GetGraphMemberFilesAsync(gid))
                 .Where(f => File.Exists(f.FullPath)).ToList();
 
             var attachmentsDir = Path.Combine(env.ContentRootPath, "attachments");
@@ -52,7 +52,7 @@ public static class AttachmentsEndpoints
 
             var att = new Attachment
             {
-                FileId = id,
+                GraphId = gid,
                 FileName = DateTime.UtcNow.ToString("dd-MM-yyyy_HH-mm") + "-UTC.zip",
                 StoredName = storedName,
                 SizeBytes = new FileInfo(storedPath).Length,
@@ -64,12 +64,16 @@ public static class AttachmentsEndpoints
             return Results.Ok(ToDto(att));
         });
 
-        // All exports made from this document (newest first).
-        g.MapGet("/{id:int}/attachments", async (int id, AppDbContext db) =>
-            Results.Ok(await db.Attachments.Where(a => a.FileId == id)
+        // All exports owned by this document's graph (newest first); any member sees them.
+        g.MapGet("/{id:int}/attachments", async (int id, AppDbContext db, GraphService graph) =>
+        {
+            var gid = await graph.GetGraphIdAsync(id);
+            if (gid is null) return Results.Ok(Array.Empty<AttachmentDto>());
+            return Results.Ok(await db.Attachments.Where(a => a.GraphId == gid.Value)
                 .OrderByDescending(a => a.CreatedUtc)
-                .Select(a => new AttachmentDto(a.Id, a.FileId, a.FileName, a.SizeBytes, a.NodeCount, a.CreatedUtc))
-                .ToListAsync()));
+                .Select(a => new AttachmentDto(a.Id, a.FileName, a.SizeBytes, a.NodeCount, a.CreatedUtc))
+                .ToListAsync());
+        });
 
         var att = app.MapGroup("/api/attachments");
 
@@ -115,5 +119,5 @@ public static class AttachmentsEndpoints
     }
 
     private static AttachmentDto ToDto(Attachment a) =>
-        new(a.Id, a.FileId, a.FileName, a.SizeBytes, a.NodeCount, a.CreatedUtc);
+        new(a.Id, a.FileName, a.SizeBytes, a.NodeCount, a.CreatedUtc);
 }

@@ -9,15 +9,23 @@ public class AppDbContext : DbContext
 
     public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<ManagedFile> Files => Set<ManagedFile>();
-    public DbSet<Relation> Relations => Set<Relation>();
+    public DbSet<Graph> Graphs => Set<Graph>();
+    public DbSet<GraphMember> GraphMembers => Set<GraphMember>();
+    public DbSet<GraphEdge> GraphEdges => Set<GraphEdge>();
+    public DbSet<GraphCompanion> GraphCompanions => Set<GraphCompanion>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Setting> Settings => Set<Setting>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<ManagedFile>().HasIndex(f => f.FullPath).IsUnique();
-        b.Entity<Relation>().HasIndex(r => new { r.FromId, r.ToId, r.Kind }).IsUnique();
-        b.Entity<Attachment>().HasIndex(a => a.FileId);
+        b.Entity<GraphMember>().HasIndex(m => m.FileId).IsUnique();
+        b.Entity<GraphMember>().HasIndex(m => m.GraphId);
+        b.Entity<GraphEdge>().HasIndex(e => new { e.FromId, e.ToId, e.Kind }).IsUnique();
+        b.Entity<GraphEdge>().HasIndex(e => e.GraphId);
+        b.Entity<GraphCompanion>().HasIndex(c => new { c.GraphId, c.FileId }).IsUnique();
+        b.Entity<GraphCompanion>().HasIndex(c => c.GraphId);
+        b.Entity<Attachment>().HasIndex(a => a.GraphId);
         b.Entity<Setting>().HasKey(s => s.Key);
     }
 }

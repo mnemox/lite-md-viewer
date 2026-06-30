@@ -39,6 +39,7 @@ export const api = {
   addRelation: (id, otherId, kind) => req('POST', `/api/files/${id}/relations`, { otherId, kind }),
   removeRelation: (id, otherId, kind) =>
     req('DELETE', `/api/files/${id}/relations?otherId=${otherId}&kind=${encodeURIComponent(kind)}`),
+  removeFromGraph: (id) => req('DELETE', `/api/files/${id}/graph`),
 
   // Attachments (graph exports)
   attachments: (id) => req('GET', `/api/files/${id}/attachments`),

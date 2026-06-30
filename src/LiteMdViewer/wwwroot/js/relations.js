@@ -447,20 +447,11 @@ async function addRelationFlow(kind, baseId) {
 
 async function removeNode(fid) {
   const ok = await confirmDialog(
-    'Remove this document from the graph? Its parent/child/same-level links are deleted (the document itself is kept).',
+    'Remove this document from the graph? Its connections are deleted (the document itself is kept).',
     { okLabel: 'Remove', danger: true });
   if (!ok) return;
-  const edges = current.edges.filter((e) => e.fromId === fid || e.toId === fid);
   try {
-    for (const e of edges) {
-      if (e.kind === 'reference') {
-        if (e.fromId === fid) await api.removeRelation(fid, e.toId, 'child');
-        else await api.removeRelation(fid, e.fromId, 'parent');
-      } else {
-        const other = e.fromId === fid ? e.toId : e.fromId;
-        await api.removeRelation(fid, other, 'sibling');
-      }
-    }
+    await api.removeFromGraph(fid);
     await refresh();
     toast('Removed from graph', 'ok');
   } catch (e) { toast(e.message, 'error'); }
