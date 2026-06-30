@@ -39,4 +39,4 @@ public record GraphDto(
 // ---- attachments (graph exports) ----
 public record ExportRequest(string IndexHtml);
 public record AttachmentDto(
-    int Id, int FileId, string FileName, long SizeBytes, int NodeCount, DateTime CreatedUtc);
+    int Id, string FileName, long SizeBytes, int NodeCount, DateTime CreatedUtc);
