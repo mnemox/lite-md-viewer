@@ -45,6 +45,21 @@ public static class RelationKind
     public const string Companion = "companion";
 }
 
+/// <summary>
+/// A downloadable export bundle (a zip of a graph component: the copied .md files +
+/// a generated index.html). Tied to the document the export was triggered from.
+/// </summary>
+public class Attachment
+{
+    public int Id { get; set; }
+    public int FileId { get; set; }                 // the document the export was made from
+    public string FileName { get; set; } = "";      // display/download name, e.g. "intro-graph.zip"
+    public string StoredName { get; set; } = "";    // on-disk name under attachments/, e.g. "<guid>.zip"
+    public long SizeBytes { get; set; }
+    public int NodeCount { get; set; }              // documents in the exported component
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+}
+
 /// <summary>Key/value application settings (theme, startup flags, last paths).</summary>
 public class Setting
 {

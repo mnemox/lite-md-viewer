@@ -130,18 +130,19 @@ public static class FilesEndpoints
         });
 
         // Remove from management only (does NOT touch the file on disk).
-        g.MapDelete("/files/{id:int}", async (int id, AppDbContext db) =>
+        g.MapDelete("/files/{id:int}", async (int id, AppDbContext db, IWebHostEnvironment env) =>
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
             db.Relations.RemoveRange(await db.Relations.Where(r => r.FromId == id || r.ToId == id).ToListAsync());
+            await RemoveAttachmentsForFile(db, env, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
 
         // Delete the real file from disk and drop it from management.
-        g.MapDelete("/files/{id:int}/disk", async (int id, AppDbContext db) =>
+        g.MapDelete("/files/{id:int}/disk", async (int id, AppDbContext db, IWebHostEnvironment env) =>
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
@@ -151,10 +152,27 @@ public static class FilesEndpoints
             }
             catch (Exception ex) { return Results.Problem("Could not delete file: " + ex.Message); }
             db.Relations.RemoveRange(await db.Relations.Where(r => r.FromId == id || r.ToId == id).ToListAsync());
+            await RemoveAttachmentsForFile(db, env, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+    }
+
+    // Delete a file's export attachments (rows + stored zips).
+    private static async Task RemoveAttachmentsForFile(AppDbContext db, IWebHostEnvironment env, int fileId)
+    {
+        var atts = await db.Attachments.Where(a => a.FileId == fileId).ToListAsync();
+        foreach (var a in atts)
+        {
+            try
+            {
+                var p = Path.Combine(env.ContentRootPath, "attachments", a.StoredName);
+                if (File.Exists(p)) File.Delete(p);
+            }
+            catch { /* best effort */ }
+        }
+        db.Attachments.RemoveRange(atts);
     }
 
     private static FileDto ToDto(ManagedFile f) =>

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using LiteMdViewer.Data;
 using LiteMdViewer.Models;
+using LiteMdViewer.Services;
 
 namespace LiteMdViewer.Endpoints;
 
@@ -17,32 +18,12 @@ public static class RelationsEndpoints
         {
             if (await db.Files.FindAsync(id) is null) return Results.NotFound();
 
-            var rels = await db.Relations.ToListAsync();
-            var byId = (await db.Files.ToListAsync()).ToDictionary(f => f.Id);
-
-            // Graph edges are reference + sibling; treat both as undirected for connectivity.
-            var graphEdges = rels
-                .Where(r => (r.Kind == RelationKind.Reference || r.Kind == RelationKind.Sibling)
-                            && byId.ContainsKey(r.FromId) && byId.ContainsKey(r.ToId))
-                .ToList();
-
-            var adj = new Dictionary<int, List<int>>();
-            void Link(int a, int b) => (adj.TryGetValue(a, out var l) ? l : adj[a] = new()).Add(b);
-            foreach (var e in graphEdges) { Link(e.FromId, e.ToId); Link(e.ToId, e.FromId); }
-
-            // BFS the connected component starting from the active file.
-            var comp = new HashSet<int> { id };
-            var queue = new Queue<int>();
-            queue.Enqueue(id);
-            while (queue.Count > 0)
-            {
-                if (!adj.TryGetValue(queue.Dequeue(), out var nbrs)) continue;
-                foreach (var n in nbrs) if (comp.Add(n)) queue.Enqueue(n);
-            }
+            var (comp, rels, byId) = await GraphHelper.ComponentAsync(db, id);
 
             var nodes = comp.Where(byId.ContainsKey).Select(i => Node(byId[i])).ToList();
-            var edges = graphEdges
-                .Where(e => comp.Contains(e.FromId) && comp.Contains(e.ToId))
+            var edges = rels
+                .Where(e => (e.Kind == RelationKind.Reference || e.Kind == RelationKind.Sibling)
+                            && comp.Contains(e.FromId) && comp.Contains(e.ToId))
                 .Select(e => new RelationEdgeDto(e.FromId, e.ToId, e.Kind))
                 .ToList();
 

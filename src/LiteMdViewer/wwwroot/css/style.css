@@ -353,7 +353,7 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .rel-error { padding: 24px; color: var(--text-dim); }
 
 /* 2D/3D toggle in the modal head */
-.rel-modes { margin-inline-start: auto; }
+.rel-modes { margin-inline-start: 8px; }
 .rel-modes .seg-btn { padding: 3px 12px; font-size: 13px; }
 .modal-head .rel-modes + .icon-btn { margin-inline-start: 8px; }
 
@@ -379,6 +379,19 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .rel-comp-list li .name { cursor: pointer; }
 .rel-rm { width: 24px; height: 24px; font-size: 13px; opacity: .55; flex: 0 0 auto; }
 .rel-comp-list li:hover .rel-rm { opacity: 1; }
+
+/* export button + attachments section */
+/* group Export + Download (icon) immediately to the left of the 2D/3D toggle */
+.modal-head .rel-export-btn { padding: 4px 11px; margin-inline-start: auto; }
+.modal-head .rel-download-btn { margin-inline-start: 6px; }
+/* the action controls never shrink/clip; the hint yields first (and hides when tight) */
+.modal-head .rel-export-btn, .modal-head .rel-download-btn, .modal-head .rel-modes { flex: 0 0 auto; }
+@media (max-width: 760px) { .modal-head .rel-hint { display: none; } }
+.rel-attachments { flex: 0 0 auto; padding-block-start: 12px; margin-block-start: 6px; border-block-start: 1px solid var(--border); }
+.rel-attach-head { padding: 0 14px 6px; }
+.rel-attach-list a.name { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.rel-attach-list a.name:hover { text-decoration: underline; }
+.rel-attach-list li:hover .rel-rm { opacity: 1; }
 
 /* ---------- toasts ---------- */
 .toasts {

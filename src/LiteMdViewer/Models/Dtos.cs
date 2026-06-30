@@ -35,3 +35,8 @@ public record GraphDto(
     IEnumerable<RelationNodeDto> Nodes,
     IEnumerable<RelationEdgeDto> Edges,
     IEnumerable<RelationNodeDto> Companions);
+
+// ---- attachments (graph exports) ----
+public record ExportRequest(string IndexHtml);
+public record AttachmentDto(
+    int Id, int FileId, string FileName, long SizeBytes, int NodeCount, DateTime CreatedUtc);

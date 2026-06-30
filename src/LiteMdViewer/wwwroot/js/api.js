@@ -40,6 +40,12 @@ export const api = {
   removeRelation: (id, otherId, kind) =>
     req('DELETE', `/api/files/${id}/relations?otherId=${otherId}&kind=${encodeURIComponent(kind)}`),
 
+  // Attachments (graph exports)
+  attachments: (id) => req('GET', `/api/files/${id}/attachments`),
+  export: (id, indexHtml) => req('POST', `/api/files/${id}/export`, { indexHtml }),
+  deleteAttachment: (attId) => req('DELETE', `/api/attachments/${attId}`),
+  attachmentUrl: (attId) => `/api/attachments/${attId}/download`,
+
   folders: () => req('GET', '/api/folders'),
   addFolder: (name, parentId) => req('POST', '/api/folders', { name, parentId: parentId ?? null }),
   patchFolder: (id, patch) => req('PATCH', `/api/folders/${id}`, patch),
