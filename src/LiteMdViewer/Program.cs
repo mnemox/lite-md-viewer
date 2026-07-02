@@ -31,6 +31,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
     EnsureGraphTables(db);                       // add graph tables to a pre-existing DB (no-op on fresh)
     MigrateLegacyToGraph(db, app.Environment);   // one-time: legacy Relation/Attachment(FileId) → graph model
+    EnsureAttachmentColumns(db);                 // add Kind/SourcePath to a pre-existing Attachments table
     SeedSettings(db);
     openBrowser = db.Settings.Find("openBrowserOnStart")?.Value == "true";
 }
@@ -96,6 +97,16 @@ static void EnsureGraphTables(AppDbContext db)
         ""Json"" TEXT NOT NULL,
         ""CreatedUtc"" TEXT NOT NULL);");
     db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GraphColorMaps_GraphId"" ON ""GraphColorMaps"" (""GraphId"");");
+}
+
+// Adds the attachment-kind columns to an already-created Attachments table (EnsureCreated
+// builds them on a fresh DB; the legacy rebuild in MigrateLegacyToGraph does not).
+static void EnsureAttachmentColumns(AppDbContext db)
+{
+    if (!ColumnExists(db, "Attachments", "Kind"))
+        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Attachments"" ADD COLUMN ""Kind"" TEXT NOT NULL DEFAULT 'export';");
+    if (!ColumnExists(db, "Attachments", "SourcePath"))
+        db.Database.ExecuteSqlRaw(@"ALTER TABLE ""Attachments"" ADD COLUMN ""SourcePath"" TEXT NULL;");
 }
 
 // One-time, idempotent migration from the legacy Relation/Attachment(FileId) model to the

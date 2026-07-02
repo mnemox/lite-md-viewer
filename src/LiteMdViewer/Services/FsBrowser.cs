@@ -14,7 +14,10 @@ public sealed class FsBrowser
 
     public BrowseResult Browse(string? path, string? kind = null)
     {
-        var exts = string.Equals(kind, "json", StringComparison.OrdinalIgnoreCase) ? JsonExt : MarkdownExt;
+        // kind: null/'md' → markdown files; 'json' → .json files; 'any' → every file
+        var exts = string.Equals(kind, "json", StringComparison.OrdinalIgnoreCase) ? JsonExt
+            : string.Equals(kind, "any", StringComparison.OrdinalIgnoreCase) ? null
+            : MarkdownExt;
 
         if (string.IsNullOrWhiteSpace(path))
             return ListDrives();
@@ -37,7 +40,7 @@ public sealed class FsBrowser
             foreach (var file in Directory.EnumerateFiles(full))
             {
                 var ext = Path.GetExtension(file);
-                if (!exts.Contains(ext, StringComparer.OrdinalIgnoreCase)) continue;
+                if (exts is not null && !exts.Contains(ext, StringComparer.OrdinalIgnoreCase)) continue;
                 entries.Add(new BrowseEntry(Path.GetFileName(file), file, false, true, true));
             }
         }
