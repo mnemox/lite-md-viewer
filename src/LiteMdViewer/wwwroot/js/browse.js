@@ -5,7 +5,7 @@ import { toast } from './ui.js';
 let onPick = null;
 let last = null;       // last BrowseResult
 let mode = 'add';      // 'add' (pick an existing file) | 'create' (name a new .md here) | 'folder' (pick a folder)
-let kind = null;       // null/'md' → markdown files; 'json' → .json files
+let kind = null;       // null/'md' → markdown files; 'json' → .json files; 'any' → every file
 
 const $ = (id) => document.getElementById(id);
 const modal = () => $('browseModal');
@@ -92,6 +92,7 @@ function renderEntries(entries) {
     li.className = 'disabled';
     li.textContent = filter ? 'No matches.' : (kind === 'json'
       ? 'No subfolders or .json files here.'
+      : kind === 'any' ? 'No subfolders or files here.'
       : 'No subfolders or .md files here.');
     list.appendChild(li);
   }

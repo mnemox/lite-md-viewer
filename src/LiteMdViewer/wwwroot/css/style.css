@@ -411,10 +411,23 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .rel-3d.hidden { display: none; }
 .rel-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 
-.rel-companions { flex: 0 0 244px; min-height: 0; display: flex; flex-direction: column; border-inline-start: 1px solid var(--border); }
-.rel-comp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 12px 14px; border-block-end: 1px solid var(--border); }
-.rel-comp-head .btn { padding: 4px 9px; }
+.rel-companions { flex: 0 0 244px; min-height: 0; display: flex; flex-direction: column;
+  border-inline-start: 1px solid var(--border); overflow-y: auto; }
+
+/* collapsible side-menu sections (all start collapsed) */
+.rel-section { flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
+  border-block-end: 1px solid var(--border); }
+.rel-section.open { flex: 0 1 auto; }
+.rel-section-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 10px;
+  cursor: pointer; user-select: none; }
+.rel-section-head:hover { background: var(--bg-elev); }
+.rel-section-head .btn { padding: 4px 9px; margin-inline-start: auto; flex: 0 0 auto; }
+.rel-caret { flex: 0 0 auto; font-size: 11px; color: var(--text-dim); transition: transform .15s ease; }
+.rel-section.open > .rel-section-head .rel-caret { transform: rotate(90deg); }
+.rel-section-body { display: none; min-height: 0; overflow: auto; }
+.rel-section.open > .rel-section-body { display: block; }
+.rel-section-body .browse-list { margin: 2px 0 10px; }
+
 .rel-comp-list li .name { cursor: pointer; }
 
 /* section-header "?" help icon + its explanation modal */
@@ -439,11 +452,6 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .rel-comp-list li:hover .rel-rm { opacity: 1; }
 
 /* colors-map section (imported schemas that recolor node borders) */
-.rel-colormaps { flex: 0 0 auto; max-height: 34%; display: flex; flex-direction: column;
-  padding-block-start: 12px; margin-block-start: 6px; border-block-start: 1px solid var(--border); }
-.rel-cmap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 6px; }
-.rel-cmap-head .btn { padding: 4px 9px; }
-.rel-cmap-list { margin: 0; }
 .rel-cmap-list li .name { cursor: pointer; }
 .rel-cmap-list li:hover .rel-rm { opacity: 1; }
 .rel-cmap-list li.rel-cmap-active { background: var(--bg-elev-2); }
@@ -456,11 +464,14 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 /* the action controls never shrink/clip; the hint yields first (and hides when tight) */
 .modal-head .rel-export-btn, .modal-head .rel-download-btn, .modal-head .rel-modes { flex: 0 0 auto; }
 @media (max-width: 760px) { .modal-head .rel-hint { display: none; } }
-.rel-attachments { flex: 0 0 auto; padding-block-start: 12px; margin-block-start: 6px; border-block-start: 1px solid var(--border); }
-.rel-attach-head { padding: 0 14px 6px; }
 .rel-attach-list a.name { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
 .rel-attach-list a.name:hover { text-decoration: underline; }
 .rel-attach-list li:hover .rel-rm { opacity: 1; }
+/* per-row download icon button */
+.rel-att-dl { width: 24px; height: 24px; opacity: .55; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.rel-attach-list li:hover .rel-att-dl { opacity: 1; }
+.rel-att-dl.disabled { opacity: .25; pointer-events: none; }
 
 /* ---------- toasts ---------- */
 .toasts {
