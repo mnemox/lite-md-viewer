@@ -10,6 +10,7 @@ import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
 import { computeLayout } from './graphlayout.js';
 import { createGraph3d } from './graph3d.js';
+import { openBrowse } from './browse.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const NODE_W = 144, NODE_H = 38, PAD = 64;
@@ -24,6 +25,8 @@ let current = null;     // last graph response
 let layout = null;      // last computeLayout result
 let attachments = [];   // export bundles for the active document
 let exporting = false;  // guard against concurrent exports
+let colorMaps = [];     // imported color-map schemas for the active graph
+let activeMap = null;   // currently-applied color map ({ ..., _byName: Map }) or null
 
 // Open the relations modal for a document. `navigateCb(id)` reloads the host viewer.
 export async function openRelations(fileId, navigateCb) {
@@ -67,6 +70,13 @@ function buildModal() {
             <button class="btn" data-act="add-companion">+ Add</button>
           </div>
           <ul class="browse-list rel-comp-list"></ul>
+          <div class="rel-colormaps">
+            <div class="rel-cmap-head">
+              <strong>Colors map</strong>
+              <button class="btn" data-act="add-colormap">+ Add</button>
+            </div>
+            <ul class="browse-list rel-cmap-list"></ul>
+          </div>
           <div class="rel-attachments hidden">
             <div class="rel-attach-head"><strong>Attachments</strong></div>
             <ul class="browse-list rel-attach-list"></ul>
@@ -83,6 +93,7 @@ function buildModal() {
     else if (act === 'out') zoomOut();
     else if (act === 'fit') fitView();
     else if (act === 'add-companion') addRelationFlow('companion', activeId);
+    else if (act === 'add-colormap') addColorMapFlow();
     else if (act === 'export') startExport();
     else if (act === 'mode-2d') setMode('2d');
     else if (act === 'mode-3d') setMode('3d');
@@ -97,7 +108,9 @@ function buildModal() {
 
 function onKey(e) {
   if (!overlay) return;
-  if (document.querySelector('.pick-list') || document.querySelector('.popup-menu')) return; // nested UI owns keys
+  const browse = document.getElementById('browseModal');
+  if (document.querySelector('.pick-list') || document.querySelector('.popup-menu')
+    || (browse && !browse.classList.contains('hidden'))) return; // nested UI owns keys
   if (e.key === 'Escape') { e.stopPropagation(); closeModal(); }
   else if (e.key === '+' || e.key === '=') zoomIn();
   else if (e.key === '-' || e.key === '_') zoomOut();
@@ -110,6 +123,7 @@ function closeModal() {
   g3d?.dispose(); g3d = null;
   overlay.remove();
   overlay = null; pz = null; current = null; layout = null;
+  colorMaps = []; activeMap = null;
 }
 
 // toolbar/keys dispatch to whichever renderer is active
@@ -133,8 +147,11 @@ async function refresh() {
   catch (e) { toast(e.message, 'error'); return; }
   current = graph;
   layout = computeLayout(graph);
+  try { colorMaps = await api.colorMaps(activeId); } catch { colorMaps = []; }
+  reconcileActiveMap();
   renderActive();
   renderCompanions(graph.companions);
+  renderColorMaps(colorMaps);
   try { attachments = await api.attachments(activeId); } catch { attachments = []; }
   renderAttachments(attachments);
 }
@@ -143,7 +160,7 @@ function renderActive() {
   if (!current || !overlay) return;
   if (mode === '3d') {
     if (!g3d) g3d = createGraph3d(overlay.querySelector('.rel-3d'), callbacks);
-    g3d.render(current, layout);
+    g3d.render(current, layout, colorForNode);
     requestAnimationFrame(() => g3d && g3d.resize()); // container just became visible
   } else {
     render2d(current, layout);
@@ -217,6 +234,12 @@ function render2d(graph, layout) {
       }), { textContent: truncate(n.title) || ('#' + n.id) }),
       Object.assign(svgEl('title'), { textContent: n.title || ('#' + n.id) }),
     );
+    const mapColor = colorForNode(n);
+    if (mapColor) {
+      const box = g.querySelector('.rel-node-box');
+      box.style.stroke = mapColor;
+      box.style.strokeWidth = '3';
+    }
     let clickTimer = null;
     g.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -432,6 +455,84 @@ function renderCompanions(companions) {
 async function removeCompanion(otherId) {
   try { await api.removeRelation(activeId, otherId, 'companion'); await refresh(); }
   catch (e) { toast(e.message, 'error'); }
+}
+
+// ---- color maps ----
+// The border color for a node under the active map: match by file name (basename),
+// case-insensitively, so imported paths need not match the local disk exactly.
+const baseName = (s) => String(s || '').split(/[\\/]/).pop().toLowerCase();
+function colorForNode(n) {
+  if (!activeMap) return null;
+  return activeMap._byName.get(baseName(n.path || n.title)) || null;
+}
+
+// Rebuild the applied map after a refresh: keep it applied if it still exists.
+function reconcileActiveMap() {
+  if (!activeMap) return;
+  const still = colorMaps.find((m) => m.id === activeMap.id);
+  activeMap = still ? buildActiveMap(still) : null;
+}
+
+function buildActiveMap(m) {
+  const byName = new Map();
+  for (const f of (m.files || [])) byName.set(baseName(f.filePath), f.color);
+  return { ...m, _byName: byName };
+}
+
+function selectColorMap(m) {
+  activeMap = (activeMap && activeMap.id === m.id) ? null : buildActiveMap(m); // toggle
+  renderColorMaps(colorMaps);
+  renderActive();
+}
+
+function renderColorMaps(maps) {
+  const list = overlay.querySelector('.rel-cmap-list');
+  list.innerHTML = '';
+  if (!maps.length) {
+    const li = document.createElement('li');
+    li.className = 'disabled';
+    li.textContent = 'No colors maps yet.';
+    list.appendChild(li);
+    return;
+  }
+  for (const m of maps) {
+    const li = document.createElement('li');
+    if (activeMap && activeMap.id === m.id) li.className = 'rel-cmap-active';
+    const icon = document.createElement('span'); icon.textContent = '🎨';
+    const name = document.createElement('span');
+    name.className = 'name'; name.textContent = m.listName; name.dir = 'auto';
+    name.title = (m.legend || []).map((l) => `${l.color} — ${l.meaning}`).join('\n') || m.filePath;
+    name.onclick = () => selectColorMap(m);
+    const rm = document.createElement('button');
+    rm.className = 'icon-btn rel-rm'; rm.textContent = '✕'; rm.title = 'Remove colors map';
+    rm.onclick = (e) => { e.stopPropagation(); removeColorMap(m.id); };
+    li.append(icon, name, rm);
+    list.appendChild(li);
+  }
+}
+
+async function addColorMapFlow() {
+  openBrowse(async (path) => {
+    try {
+      await api.addColorMap(activeId, path);
+      await refresh();
+      toast('Colors map referenced', 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+  }, {
+    kind: 'json',
+    title: 'Reference a colors JSON file',
+    addLabel: 'Reference',
+    pathPlaceholder: '…or paste a full path to a .json file',
+  });
+}
+
+async function removeColorMap(mapId) {
+  try {
+    await api.removeColorMap(activeId, mapId);
+    if (activeMap && activeMap.id === mapId) activeMap = null;
+    await refresh();
+    toast('Colors map removed', 'ok');
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ---- add / remove links ----

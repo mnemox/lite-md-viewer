@@ -28,13 +28,21 @@ public record FileDetailsDto(
 
 // ---- relations ----
 public record AddRelationRequest(int OtherId, string Kind); // kind: parent|child|sibling|companion
-public record RelationNodeDto(int Id, string Title, bool Missing);
+public record RelationNodeDto(int Id, string Title, bool Missing, string? Path = null);
 public record RelationEdgeDto(int FromId, int ToId, string Kind);
 public record GraphDto(
     int ActiveId,
     IEnumerable<RelationNodeDto> Nodes,
     IEnumerable<RelationEdgeDto> Edges,
     IEnumerable<RelationNodeDto> Companions);
+
+// ---- color maps (graph node border colors) ----
+public record AddColorMapRequest(string Path);
+public record ColorLegendDto(string Color, string Meaning);
+public record ColorFileDto(string FilePath, string Color);
+public record ColorMapDto(
+    int Id, string ListName, string FilePath,
+    IEnumerable<ColorLegendDto> Legend, IEnumerable<ColorFileDto> Files);
 
 // ---- attachments (graph exports) ----
 public record ExportRequest(string IndexHtml);

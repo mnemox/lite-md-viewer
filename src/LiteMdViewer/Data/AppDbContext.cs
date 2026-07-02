@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<GraphMember> GraphMembers => Set<GraphMember>();
     public DbSet<GraphEdge> GraphEdges => Set<GraphEdge>();
     public DbSet<GraphCompanion> GraphCompanions => Set<GraphCompanion>();
+    public DbSet<GraphColorMap> GraphColorMaps => Set<GraphColorMap>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Setting> Settings => Set<Setting>();
 
@@ -25,6 +26,7 @@ public class AppDbContext : DbContext
         b.Entity<GraphEdge>().HasIndex(e => e.GraphId);
         b.Entity<GraphCompanion>().HasIndex(c => new { c.GraphId, c.FileId }).IsUnique();
         b.Entity<GraphCompanion>().HasIndex(c => c.GraphId);
+        b.Entity<GraphColorMap>().HasIndex(c => c.GraphId);
         b.Entity<Attachment>().HasIndex(a => a.GraphId);
         b.Entity<Setting>().HasKey(s => s.Key);
     }

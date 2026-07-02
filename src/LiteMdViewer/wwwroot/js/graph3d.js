@@ -43,14 +43,14 @@ export function createGraph3d(container, cb) {
     };
   }
 
-  function makeNode(node, active, col) {
+  function makeNode(node, active, col, borderColor) {
     const W = 256, H = 96, pad = 8, r = 16;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d');
     roundRect(ctx, pad, pad, W - 2 * pad, H - 2 * pad, r);
     ctx.fillStyle = col.bg; ctx.fill();
-    ctx.lineWidth = active ? 8 : 4;
-    ctx.strokeStyle = active ? col.accent : col.border; ctx.stroke();
+    ctx.lineWidth = (borderColor || active) ? 8 : 4;
+    ctx.strokeStyle = borderColor || (active ? col.accent : col.border); ctx.stroke();
     ctx.fillStyle = node.missing ? col.danger : col.text;
     ctx.font = '600 30px system-ui, -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -85,7 +85,7 @@ export function createGraph3d(container, cb) {
     disposables = []; nodeObjs = []; edgeObjs = [];
   }
 
-  function render(graph, layout) {
+  function render(graph, layout, borderFn) {
     clearScene();
     const col = colors();
     const focusLevel = layout.level.get(graph.activeId) ?? 0;
@@ -108,7 +108,7 @@ export function createGraph3d(container, cb) {
 
     for (const n of graph.nodes) {
       const p = pos.get(n.id); if (!p) continue;
-      const sp = makeNode(n, n.id === graph.activeId, col);
+      const sp = makeNode(n, n.id === graph.activeId, col, borderFn ? borderFn(n) : null);
       sp.position.copy(p);
       scene.add(sp);
       nodeObjs.push({ sprite: sp, id: n.id });

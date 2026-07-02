@@ -71,6 +71,22 @@ public class GraphCompanion
 }
 
 /// <summary>
+/// An imported colors-map schema associated with a graph: a JSON file mapping document
+/// file paths to node border colors (plus a legend). Applied on demand to recolor the
+/// graph's node borders. The parsed schema is stored as JSON so the source file need not
+/// stay reachable.
+/// </summary>
+public class GraphColorMap
+{
+    public int Id { get; set; }
+    public int GraphId { get; set; }
+    public string FilePath { get; set; } = "";   // source JSON file path (as imported)
+    public string ListName { get; set; } = "";   // schema listName (display label)
+    public string Json { get; set; } = "";        // normalized schema { legend, files } as JSON
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// A downloadable export bundle (a zip of a graph: the copied .md files + a generated
 /// index.html). Belongs to the graph, so it is visible from any of the graph's members.
 /// </summary>
