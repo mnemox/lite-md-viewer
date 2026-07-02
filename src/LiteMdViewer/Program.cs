@@ -16,7 +16,9 @@ builder.Services.AddSingleton<FsBrowser>();
 builder.Services.AddScoped<GraphService>();
 
 // HTTP only, loopback only — the disk-touching endpoints must never be off-box.
-const string url = "http://127.0.0.1:5099";
+// PORT (set by dev/preview harnesses) overrides the default port.
+var portOverride = Environment.GetEnvironmentVariable("PORT");
+var url = $"http://127.0.0.1:{(string.IsNullOrWhiteSpace(portOverride) ? "5099" : portOverride)}";
 builder.WebHost.UseUrls(url);
 
 var app = builder.Build();
@@ -46,7 +48,7 @@ app.MapAttachments();
 
 app.MapFallbackToFile("index.html");
 
-if (openBrowser)
+if (openBrowser && string.IsNullOrWhiteSpace(portOverride))
 {
     try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
     catch { /* ignore */ }

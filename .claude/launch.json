@@ -5,7 +5,8 @@
       "name": "litemdviewer",
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "src/LiteMdViewer/LiteMdViewer.csproj"],
-      "port": 5099
+      "port": 5099,
+      "autoPort": true
     }
   ]
 }

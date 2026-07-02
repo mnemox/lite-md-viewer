@@ -379,6 +379,25 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   padding: 12px 14px; border-block-end: 1px solid var(--border); }
 .rel-comp-head .btn { padding: 4px 9px; }
 .rel-comp-list li .name { cursor: pointer; }
+
+/* section-header "?" help icon + its explanation modal */
+.rel-head-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rel-help-btn {
+  width: 18px; height: 18px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 50%; color: var(--text-dim);
+}
+.rel-help-btn:hover { color: var(--text); border-color: var(--accent); }
+.rel-help-modal { z-index: 70; } /* above the relations modal */
+.rel-help-body { padding: 14px 18px; overflow: auto; font-size: 14px; line-height: 1.55; }
+.rel-help-body p { margin: 0 0 10px; }
+.rel-help-body ul { margin: 0; padding-inline-start: 18px; }
+.rel-help-body li { margin-block-end: 4px; }
+.rel-help-body pre {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin: 0 0 10px; overflow: auto; font-size: 12.5px;
+}
+.rel-help-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
 .rel-rm { width: 24px; height: 24px; font-size: 13px; opacity: .55; flex: 0 0 auto; }
 .rel-comp-list li:hover .rel-rm { opacity: 1; }
 
