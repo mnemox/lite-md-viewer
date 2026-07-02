@@ -26,6 +26,7 @@ export const api = {
   browse: (path, kind) => req('GET', '/api/browse?path=' + encodeURIComponent(path ?? '') + (kind ? '&kind=' + encodeURIComponent(kind) : '')),
 
   addFile: (path, folderId) => req('POST', '/api/files', { path, folderId: folderId ?? null }),
+  addFolderFiles: (path, folderId) => req('POST', '/api/files/folder', { path, folderId: folderId ?? null }),
   newFile: (dir, name, folderId) => req('POST', '/api/files/new', { dir, name, folderId: folderId ?? null }),
   patchFile: (id, patch) => req('PATCH', `/api/files/${id}`, patch),
   removeFile: (id) => req('DELETE', `/api/files/${id}`),

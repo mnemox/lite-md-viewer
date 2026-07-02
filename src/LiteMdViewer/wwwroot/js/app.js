@@ -207,6 +207,19 @@ function startAddFile() {
   });
 }
 
+function startAddFolder() {
+  openBrowse(async (path) => {
+    try {
+      const res = await api.addFolderFiles(path);
+      if (res.added === 0 && res.skipped === 0) toast('No .md files in that folder');
+      else if (res.added === 0) toast('All files there are already managed');
+      else toast(`Added ${res.added} file${res.added === 1 ? '' : 's'}`
+        + (res.skipped ? ` (${res.skipped} already managed)` : ''), 'ok');
+      await refreshTree();
+    } catch (e) { toast(e.message, 'error'); }
+  }, { mode: 'folder' });
+}
+
 function startNewFile() {
   openBrowse(async ({ dir, name }) => {
     try {
@@ -226,6 +239,23 @@ async function addFolder(parentId) {
   if (!name) return;
   try { await api.addFolder(name, parentId ?? null); await refreshTree(); }
   catch (e) { toast(e.message, 'error'); }
+}
+
+// ---------- "Add ▾" dropdown ----------
+function closeAddMenu() {
+  const m = $('addMenu');
+  if (m.classList.contains('hidden')) return false;
+  m.classList.add('hidden');
+  $('addBtn').setAttribute('aria-expanded', 'false');
+  m.parentElement.classList.remove('open');
+  return true;
+}
+function toggleAddMenu() {
+  const m = $('addMenu');
+  const show = m.classList.contains('hidden');
+  m.classList.toggle('hidden', !show);
+  $('addBtn').setAttribute('aria-expanded', String(show));
+  m.parentElement.classList.toggle('open', show);
 }
 
 // ---------- theme ----------
@@ -257,12 +287,20 @@ async function init() {
   $('drawerCloseBtn').onclick = () => setPinned(false);
   scrim().onclick = () => setPinned(false);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { if (pinned) setPinned(false); else closeDrawer(); }
+    if (e.key === 'Escape') {
+      if (closeAddMenu()) return;           // first Escape only closes the Add menu
+      if (pinned) setPinned(false); else closeDrawer();
+    }
   });
 
   $('themeBtn').onclick = toggleTheme;
   $('newFileBtn').onclick = startNewFile;
-  $('addFileBtn').onclick = startAddFile;
+  $('addBtn').onclick = toggleAddMenu;
+  $('addFileOpt').onclick = () => { closeAddMenu(); startAddFile(); };
+  $('addFolderFilesOpt').onclick = () => { closeAddMenu(); startAddFolder(); };
+  document.addEventListener('mousedown', (e) => {
+    if (!$('addMenu').parentElement.contains(e.target)) closeAddMenu();
+  });
   $('welcomeAdd').onclick = startAddFile;
   $('addFolderBtn').onclick = () => addFolder(null);
 
