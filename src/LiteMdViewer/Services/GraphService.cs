@@ -209,16 +209,49 @@ public sealed class GraphService
         catch { return (new(), new()); }
     }
 
+    // Parse raw colors-schema JSON text into its display name + legend + (valid) file entries.
+    private static (string listName, List<ColorLegendDto> legend, List<ColorFileDto> files) ParseColorSchemaText(string text, string fallbackName)
+    {
+        var doc = JsonSerializer.Deserialize<ColorMapFile>(text, ColorJsonOpts);
+        var legend = (doc?.Legend ?? new()).Select(l => new ColorLegendDto(l.Color ?? "", l.Meaning ?? "")).ToList();
+        var files = (doc?.Files ?? new())
+            .Where(f => !string.IsNullOrWhiteSpace(f.FilePath) && !string.IsNullOrWhiteSpace(f.Color))
+            .Select(f => new ColorFileDto(f.FilePath!, f.Color!)).ToList();
+        var listName = string.IsNullOrWhiteSpace(doc?.ListName) ? fallbackName : doc!.ListName!.Trim();
+        return (listName, legend, files);
+    }
+
     public async Task<List<ColorMapDto>> GetColorMapsAsync(int activeId)
     {
         var gid = await GetGraphIdAsync(activeId);
         if (gid is null) return new();
         var rows = await _db.GraphColorMaps.Where(c => c.GraphId == gid.Value).OrderBy(c => c.Id).ToListAsync();
-        return rows.Select(r =>
+        var result = new List<ColorMapDto>();
+        var dirty = false;
+        foreach (var r in rows)
         {
-            var (legend, files) = ParseColorSchema(r.Json);
-            return new ColorMapDto(r.Id, r.ListName, r.FilePath, legend, files);
-        }).ToList();
+            // Re-read the referenced file live so edits to it are reflected; refresh the stored
+            // snapshot when it changes. Fall back to the snapshot if the file is gone/unreadable.
+            if (!string.IsNullOrWhiteSpace(r.FilePath) && File.Exists(r.FilePath))
+            {
+                try
+                {
+                    var (name, legend, files) = ParseColorSchemaText(await File.ReadAllTextAsync(r.FilePath), Path.GetFileName(r.FilePath));
+                    if (files.Count > 0)
+                    {
+                        var freshJson = JsonSerializer.Serialize(new { legend, files });
+                        if (r.Json != freshJson || r.ListName != name) { r.Json = freshJson; r.ListName = name; dirty = true; }
+                        result.Add(new ColorMapDto(r.Id, name, r.FilePath, legend, files));
+                        continue;
+                    }
+                }
+                catch { /* fall through to the stored snapshot */ }
+            }
+            var (snapLegend, snapFiles) = ParseColorSchema(r.Json);
+            result.Add(new ColorMapDto(r.Id, r.ListName, r.FilePath, snapLegend, snapFiles));
+        }
+        if (dirty) await _db.SaveChangesAsync();
+        return result;
     }
 
     // Import a colors-schema JSON file: read, parse, validate, and store on the graph.
