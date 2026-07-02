@@ -57,6 +57,28 @@ public static class RelationsEndpoints
             await graph.RemoveMemberAsync(id);
             return Results.NoContent();
         });
+
+        // Color maps: imported JSON schemas that recolor the graph's node borders by file path.
+        g.MapGet("/{id:int}/colormaps", async (int id, AppDbContext db, GraphService graph) =>
+        {
+            if (await db.Files.FindAsync(id) is null) return Results.NotFound();
+            return Results.Ok(await graph.GetColorMapsAsync(id));
+        });
+
+        // Import a colors-schema JSON file by path and attach it to this document's graph.
+        g.MapPost("/{id:int}/colormaps", async (int id, AddColorMapRequest req, AppDbContext db, GraphService graph) =>
+        {
+            if (await db.Files.FindAsync(id) is null) return Results.NotFound();
+            var (ok, error, map) = await graph.AddColorMapAsync(id, req.Path);
+            return ok ? Results.Ok(map) : Results.BadRequest(new { error });
+        });
+
+        // Remove an imported color map from this document's graph.
+        g.MapDelete("/{id:int}/colormaps/{mapId:int}", async (int id, int mapId, GraphService graph) =>
+        {
+            await graph.RemoveColorMapAsync(id, mapId);
+            return Results.NoContent();
+        });
     }
 
     private const string Companion = "companion";

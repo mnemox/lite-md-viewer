@@ -85,6 +85,15 @@ static void EnsureGraphTables(AppDbContext db)
         ""FileId"" INTEGER NOT NULL);");
     db.Database.ExecuteSqlRaw(@"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_GraphCompanions_GraphId_FileId"" ON ""GraphCompanions"" (""GraphId"", ""FileId"");");
     db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GraphCompanions_GraphId"" ON ""GraphCompanions"" (""GraphId"");");
+
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""GraphColorMaps"" (
+        ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_GraphColorMaps"" PRIMARY KEY AUTOINCREMENT,
+        ""GraphId"" INTEGER NOT NULL,
+        ""FilePath"" TEXT NOT NULL,
+        ""ListName"" TEXT NOT NULL,
+        ""Json"" TEXT NOT NULL,
+        ""CreatedUtc"" TEXT NOT NULL);");
+    db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GraphColorMaps_GraphId"" ON ""GraphColorMaps"" (""GraphId"");");
 }
 
 // One-time, idempotent migration from the legacy Relation/Attachment(FileId) model to the

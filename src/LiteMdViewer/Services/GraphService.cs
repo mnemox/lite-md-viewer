@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using LiteMdViewer.Data;
 using LiteMdViewer.Models;
 
@@ -68,6 +69,7 @@ public sealed class GraphService
         await _db.GraphMembers.Where(m => m.GraphId == source).ExecuteUpdateAsync(s => s.SetProperty(m => m.GraphId, target));
         await _db.GraphEdges.Where(e => e.GraphId == source).ExecuteUpdateAsync(s => s.SetProperty(e => e.GraphId, target));
         await _db.Attachments.Where(a => a.GraphId == source).ExecuteUpdateAsync(s => s.SetProperty(a => a.GraphId, target));
+        await _db.GraphColorMaps.Where(c => c.GraphId == source).ExecuteUpdateAsync(s => s.SetProperty(c => c.GraphId, target));
 
         // Companions: reassign source rows, dropping any that already exist on the target.
         var existing = (await _db.GraphCompanions.Where(c => c.GraphId == target).Select(c => c.FileId).ToListAsync()).ToHashSet();
@@ -139,6 +141,7 @@ public sealed class GraphService
         }
         await _db.Attachments.Where(a => a.GraphId == graphId).ExecuteDeleteAsync();
         await _db.GraphCompanions.Where(c => c.GraphId == graphId).ExecuteDeleteAsync();
+        await _db.GraphColorMaps.Where(c => c.GraphId == graphId).ExecuteDeleteAsync();
         await _db.Graphs.Where(g => g.Id == graphId).ExecuteDeleteAsync();
     }
 
@@ -179,5 +182,78 @@ public sealed class GraphService
             companionIds.Where(byId.ContainsKey).Select(i => Node(byId[i])).ToList());
     }
 
-    private static RelationNodeDto Node(ManagedFile f) => new(f.Id, f.Title, !File.Exists(f.FullPath));
+    private static RelationNodeDto Node(ManagedFile f) => new(f.Id, f.Title, !File.Exists(f.FullPath), f.FullPath);
+
+    // ---- color maps (imported JSON schemas that recolor node borders) ----
+
+    private static readonly JsonSerializerOptions ColorJsonOpts = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed class ColorMapFile
+    {
+        public string? ListName { get; set; }
+        public List<LegendItem>? Legend { get; set; }
+        public List<FileItem>? Files { get; set; }
+    }
+    private sealed class LegendItem { public string? Color { get; set; } public string? Meaning { get; set; } }
+    private sealed class FileItem { public string? FilePath { get; set; } public string? Color { get; set; } }
+
+    private static (List<ColorLegendDto> legend, List<ColorFileDto> files) ParseColorSchema(string json)
+    {
+        try
+        {
+            var doc = JsonSerializer.Deserialize<ColorMapFile>(json, ColorJsonOpts);
+            var legend = (doc?.Legend ?? new()).Select(l => new ColorLegendDto(l.Color ?? "", l.Meaning ?? "")).ToList();
+            var files = (doc?.Files ?? new()).Select(f => new ColorFileDto(f.FilePath ?? "", f.Color ?? "")).ToList();
+            return (legend, files);
+        }
+        catch { return (new(), new()); }
+    }
+
+    public async Task<List<ColorMapDto>> GetColorMapsAsync(int activeId)
+    {
+        var gid = await GetGraphIdAsync(activeId);
+        if (gid is null) return new();
+        var rows = await _db.GraphColorMaps.Where(c => c.GraphId == gid.Value).OrderBy(c => c.Id).ToListAsync();
+        return rows.Select(r =>
+        {
+            var (legend, files) = ParseColorSchema(r.Json);
+            return new ColorMapDto(r.Id, r.ListName, r.FilePath, legend, files);
+        }).ToList();
+    }
+
+    // Import a colors-schema JSON file: read, parse, validate, and store on the graph.
+    public async Task<(bool ok, string? error, ColorMapDto? map)> AddColorMapAsync(int activeId, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return (false, "Enter a path to a colors JSON file.", null);
+        string full;
+        try { full = Path.GetFullPath(path.Trim()); }
+        catch { return (false, "That path is not valid.", null); }
+        if (!File.Exists(full)) return (false, "No file was found at that path.", null);
+
+        ColorMapFile? parsed;
+        try { parsed = JsonSerializer.Deserialize<ColorMapFile>(await File.ReadAllTextAsync(full), ColorJsonOpts); }
+        catch (Exception ex) { return (false, $"Could not read the colors file: {ex.Message}", null); }
+        if (parsed is null) return (false, "The colors file is empty or invalid.", null);
+
+        var legend = (parsed.Legend ?? new()).Select(l => new ColorLegendDto(l.Color ?? "", l.Meaning ?? "")).ToList();
+        var files = (parsed.Files ?? new())
+            .Where(f => !string.IsNullOrWhiteSpace(f.FilePath) && !string.IsNullOrWhiteSpace(f.Color))
+            .Select(f => new ColorFileDto(f.FilePath!, f.Color!)).ToList();
+        if (files.Count == 0) return (false, "The colors file has no file/color entries to map.", null);
+        var listName = string.IsNullOrWhiteSpace(parsed.ListName) ? Path.GetFileName(full) : parsed.ListName!.Trim();
+
+        var gid = await GetOrCreateGraphAsync(activeId);
+        var storedJson = JsonSerializer.Serialize(new { legend, files });
+        var row = new GraphColorMap { GraphId = gid, FilePath = full, ListName = listName, Json = storedJson, CreatedUtc = DateTime.UtcNow };
+        _db.GraphColorMaps.Add(row);
+        await _db.SaveChangesAsync();
+        return (true, null, new ColorMapDto(row.Id, listName, full, legend, files));
+    }
+
+    public async Task RemoveColorMapAsync(int activeId, int mapId)
+    {
+        var gid = await GetGraphIdAsync(activeId);
+        if (gid is null) return;
+        await _db.GraphColorMaps.Where(c => c.Id == mapId && c.GraphId == gid.Value).ExecuteDeleteAsync();
+    }
 }

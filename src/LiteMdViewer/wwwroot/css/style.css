@@ -304,6 +304,8 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   display: flex; align-items: center; justify-content: center;
   z-index: 60; padding: 16px;
 }
+/* the disk file-picker can open on top of another modal (e.g. Relations) */
+#browseModal { z-index: 65; }
 .modal-card {
   background: var(--bg); color: var(--text);
   width: min(680px, 96vw); max-height: 86vh;
@@ -379,6 +381,17 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 .rel-comp-list li .name { cursor: pointer; }
 .rel-rm { width: 24px; height: 24px; font-size: 13px; opacity: .55; flex: 0 0 auto; }
 .rel-comp-list li:hover .rel-rm { opacity: 1; }
+
+/* colors-map section (imported schemas that recolor node borders) */
+.rel-colormaps { flex: 0 0 auto; max-height: 34%; display: flex; flex-direction: column;
+  padding-block-start: 12px; margin-block-start: 6px; border-block-start: 1px solid var(--border); }
+.rel-cmap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 6px; }
+.rel-cmap-head .btn { padding: 4px 9px; }
+.rel-cmap-list { margin: 0; }
+.rel-cmap-list li .name { cursor: pointer; }
+.rel-cmap-list li:hover .rel-rm { opacity: 1; }
+.rel-cmap-list li.rel-cmap-active { background: var(--bg-elev-2); }
+.rel-cmap-list li.rel-cmap-active .name { font-weight: 600; color: var(--accent); }
 
 /* export button + attachments section */
 /* group Export + Download (icon) immediately to the left of the 2D/3D toggle */

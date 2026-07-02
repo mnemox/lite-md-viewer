@@ -4,7 +4,8 @@ import { toast } from './ui.js';
 
 let onPick = null;
 let last = null;       // last BrowseResult
-let mode = 'add';      // 'add' (pick an existing .md) | 'create' (name a new .md here)
+let mode = 'add';      // 'add' (pick an existing file) | 'create' (name a new .md here)
+let kind = null;       // null/'md' → markdown files; 'json' → .json files
 
 const $ = (id) => document.getElementById(id);
 const modal = () => $('browseModal');
@@ -24,14 +25,15 @@ export function initBrowse() {
 export async function openBrowse(pickHandler, opts = {}) {
   onPick = pickHandler;
   mode = opts.mode === 'create' ? 'create' : 'add';
+  kind = opts.kind || null;
   modal().classList.remove('hidden');
   $('browseFilter').value = '';
   $('browsePath').value = '';
-  $('browseTitle').textContent = mode === 'create' ? 'Create a Markdown file' : 'Add a Markdown file';
-  $('browseAddPath').textContent = mode === 'create' ? 'Create here' : 'Add';
-  $('browsePath').placeholder = mode === 'create'
+  $('browseTitle').textContent = opts.title || (mode === 'create' ? 'Create a Markdown file' : 'Add a Markdown file');
+  $('browseAddPath').textContent = opts.addLabel || (mode === 'create' ? 'Create here' : 'Add');
+  $('browsePath').placeholder = opts.pathPlaceholder || (mode === 'create'
     ? 'New file name (e.g. notes.md) — created in the open folder'
-    : '…or paste a full path to a .md file';
+    : '…or paste a full path to a .md file');
   let start = '';
   try { start = (await api.settings()).lastBrowsedDir || ''; } catch { /* ignore */ }
   await load(start);
@@ -41,7 +43,7 @@ function close() { modal().classList.add('hidden'); }
 
 async function load(path) {
   let res;
-  try { res = await api.browse(path); }
+  try { res = await api.browse(path, kind); }
   catch (e) { toast(e.message, 'error'); return; }
   last = res;
   $('browseCrumb').textContent = res.isRoot ? 'This PC' : (res.path || '');
@@ -83,7 +85,9 @@ function renderEntries(entries) {
   if (!shown) {
     const li = document.createElement('li');
     li.className = 'disabled';
-    li.textContent = filter ? 'No matches.' : 'No subfolders or .md files here.';
+    li.textContent = filter ? 'No matches.' : (kind === 'json'
+      ? 'No subfolders or .json files here.'
+      : 'No subfolders or .md files here.');
     list.appendChild(li);
   }
 }

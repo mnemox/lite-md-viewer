@@ -23,7 +23,7 @@ async function req(method, url, body) {
 
 export const api = {
   tree: () => req('GET', '/api/tree'),
-  browse: (path) => req('GET', '/api/browse?path=' + encodeURIComponent(path ?? '')),
+  browse: (path, kind) => req('GET', '/api/browse?path=' + encodeURIComponent(path ?? '') + (kind ? '&kind=' + encodeURIComponent(kind) : '')),
 
   addFile: (path, folderId) => req('POST', '/api/files', { path, folderId: folderId ?? null }),
   newFile: (dir, name, folderId) => req('POST', '/api/files/new', { dir, name, folderId: folderId ?? null }),
@@ -40,6 +40,11 @@ export const api = {
   removeRelation: (id, otherId, kind) =>
     req('DELETE', `/api/files/${id}/relations?otherId=${otherId}&kind=${encodeURIComponent(kind)}`),
   removeFromGraph: (id) => req('DELETE', `/api/files/${id}/graph`),
+
+  // Color maps (imported JSON schemas that recolor node borders)
+  colorMaps: (id) => req('GET', `/api/files/${id}/colormaps`),
+  addColorMap: (id, path) => req('POST', `/api/files/${id}/colormaps`, { path }),
+  removeColorMap: (id, mapId) => req('DELETE', `/api/files/${id}/colormaps/${mapId}`),
 
   // Attachments (graph exports)
   attachments: (id) => req('GET', `/api/files/${id}/attachments`),

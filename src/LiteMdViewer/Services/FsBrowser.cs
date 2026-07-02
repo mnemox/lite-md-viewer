@@ -10,9 +10,12 @@ namespace LiteMdViewer.Services;
 public sealed class FsBrowser
 {
     private static readonly string[] MarkdownExt = { ".md", ".markdown" };
+    private static readonly string[] JsonExt = { ".json" };
 
-    public BrowseResult Browse(string? path)
+    public BrowseResult Browse(string? path, string? kind = null)
     {
+        var exts = string.Equals(kind, "json", StringComparison.OrdinalIgnoreCase) ? JsonExt : MarkdownExt;
+
         if (string.IsNullOrWhiteSpace(path))
             return ListDrives();
 
@@ -34,7 +37,7 @@ public sealed class FsBrowser
             foreach (var file in Directory.EnumerateFiles(full))
             {
                 var ext = Path.GetExtension(file);
-                if (!MarkdownExt.Contains(ext, StringComparer.OrdinalIgnoreCase)) continue;
+                if (!exts.Contains(ext, StringComparer.OrdinalIgnoreCase)) continue;
                 entries.Add(new BrowseEntry(Path.GetFileName(file), file, false, true, true));
             }
         }
