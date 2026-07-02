@@ -4,7 +4,7 @@ import { toast } from './ui.js';
 
 let onPick = null;
 let last = null;       // last BrowseResult
-let mode = 'add';      // 'add' (pick an existing file) | 'create' (name a new .md here)
+let mode = 'add';      // 'add' (pick an existing file) | 'create' (name a new .md here) | 'folder' (pick a folder)
 let kind = null;       // null/'md' → markdown files; 'json' → .json files
 
 const $ = (id) => document.getElementById(id);
@@ -24,15 +24,20 @@ export function initBrowse() {
 
 export async function openBrowse(pickHandler, opts = {}) {
   onPick = pickHandler;
-  mode = opts.mode === 'create' ? 'create' : 'add';
+  mode = (opts.mode === 'create' || opts.mode === 'folder') ? opts.mode : 'add';
   kind = opts.kind || null;
   modal().classList.remove('hidden');
   $('browseFilter').value = '';
   $('browsePath').value = '';
-  $('browseTitle').textContent = opts.title || (mode === 'create' ? 'Create a Markdown file' : 'Add a Markdown file');
-  $('browseAddPath').textContent = opts.addLabel || (mode === 'create' ? 'Create here' : 'Add');
+  $('browseTitle').textContent = opts.title || (mode === 'create' ? 'Create a Markdown file'
+    : mode === 'folder' ? 'Add all .md files from a folder'
+    : 'Add a Markdown file');
+  $('browseAddPath').textContent = opts.addLabel || (mode === 'create' ? 'Create here'
+    : mode === 'folder' ? 'Add this folder'
+    : 'Add');
   $('browsePath').placeholder = opts.pathPlaceholder || (mode === 'create'
     ? 'New file name (e.g. notes.md) — created in the open folder'
+    : mode === 'folder' ? '…or paste a full folder path'
     : '…or paste a full path to a .md file');
   let start = '';
   try { start = (await api.settings()).lastBrowsedDir || ''; } catch { /* ignore */ }
@@ -77,7 +82,7 @@ function renderEntries(entries) {
     } else if (mode === 'add') {
       li.onclick = () => pick(e.path);
     } else {
-      // create mode: existing files are shown (so you can avoid name clashes) but not pickable
+      // create/folder modes: existing files are shown for context but not pickable
       li.style.opacity = '.6';
     }
     list.appendChild(li);
@@ -94,11 +99,23 @@ function renderEntries(entries) {
 
 function applyFilter() { if (last) renderEntries(last.entries); }
 
-function submit() { return mode === 'create' ? createHere() : addFromPath(); }
+function submit() {
+  if (mode === 'create') return createHere();
+  if (mode === 'folder') return addCurrentFolder();
+  return addFromPath();
+}
 
 function addFromPath() {
   const p = $('browsePath').value.trim();
   if (p) pick(p);
+}
+
+function addCurrentFolder() {
+  // A pasted path wins; otherwise take the folder currently open in the browser.
+  const p = $('browsePath').value.trim();
+  if (p) { pick(p); return; }
+  if (!last || !last.path) { toast('Open a folder first (drives can’t be added).', 'error'); return; }
+  pick(last.path);
 }
 
 function createHere() {

@@ -50,7 +50,19 @@
   <aside id="drawer" class="drawer" aria-hidden="true" aria-label="Managed files">
     <div class="drawer-head">
       <button id="newFileBtn" class="btn primary" title="Create a new Markdown file">+ New file</button>
-      <button id="addFileBtn" class="btn" title="Add an existing file from disk">Add file</button>
+      <div class="add-menu-wrap">
+        <button id="addBtn" class="btn" title="Add existing Markdown from disk" aria-haspopup="menu" aria-expanded="false">Add<svg class="chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <div id="addMenu" class="add-menu hidden" role="menu" aria-label="Add from disk">
+          <button id="addFileOpt" class="add-menu-item" role="menuitem">
+            <span class="ami-icon">📄</span>
+            <span class="ami-text"><span class="ami-label">Add file</span><span class="ami-desc">Pick a single .md file</span></span>
+          </button>
+          <button id="addFolderFilesOpt" class="add-menu-item" role="menuitem">
+            <span class="ami-icon">📁</span>
+            <span class="ami-text"><span class="ami-label">Add folder</span><span class="ami-desc">All .md files in a folder</span></span>
+          </button>
+        </div>
+      </div>
       <button id="addFolderBtn" class="btn" title="New folder">New folder</button>
       <button id="drawerCloseBtn" class="icon-btn" title="Close menu" aria-label="Close menu">✕</button>
     </div>

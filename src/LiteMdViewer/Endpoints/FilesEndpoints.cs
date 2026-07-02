@@ -66,6 +66,61 @@ public static class FilesEndpoints
             return Results.Ok(ToDto(file));
         });
 
+        // Add every top-level .md/.markdown file from a disk folder (no recursion),
+        // silently skipping paths that are already managed.
+        g.MapPost("/files/folder", async (AddFolderFilesRequest req, AppDbContext db) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.Path))
+                return Results.BadRequest(new { error = "A folder path is required." });
+
+            string full;
+            try { full = Path.GetFullPath(req.Path); }
+            catch { return Results.BadRequest(new { error = "Invalid path." }); }
+
+            if (!Directory.Exists(full))
+                return Results.BadRequest(new { error = "Folder does not exist." });
+
+            List<string> mdFiles;
+            try
+            {
+                mdFiles = Directory.EnumerateFiles(full)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f);
+                        return ext.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
+                               ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase);
+                    })
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch (Exception ex) { return Results.Problem("Could not read folder: " + ex.Message); }
+
+            var all = await db.Files.ToListAsync();
+            var known = new HashSet<string>(all.Select(f => f.FullPath), StringComparer.OrdinalIgnoreCase);
+            var maxSort = all.Count > 0 ? all.Max(f => f.SortOrder) : 0;
+
+            var added = new List<ManagedFile>();
+            var skipped = 0;
+            foreach (var path in mdFiles)
+            {
+                var canon = Path.GetFullPath(path);
+                if (!known.Add(canon)) { skipped++; continue; }
+                var file = new ManagedFile
+                {
+                    FullPath = canon,
+                    Title = Path.GetFileNameWithoutExtension(canon),
+                    FolderId = req.FolderId,
+                    SortOrder = ++maxSort,
+                    LastWriteUtc = File.GetLastWriteTimeUtc(canon),
+                    AddedUtc = DateTime.UtcNow,
+                };
+                db.Files.Add(file);
+                added.Add(file);
+            }
+            if (added.Count > 0) await db.SaveChangesAsync();
+            return Results.Ok(new AddFolderFilesResult(added.Count, skipped, added.Select(ToDto).ToList()));
+        });
+
         // Create a brand-new .md file on disk in a chosen folder, then manage it.
         g.MapPost("/files/new", async (NewFileRequest req, AppDbContext db) =>
         {
