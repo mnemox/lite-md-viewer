@@ -1,7 +1,9 @@
-// Thin fetch wrapper around the JSON API.
+// Thin fetch wrapper around the JSON API. A FormData body is sent as-is (multipart).
 async function req(method, url, body) {
   const opt = { method, headers: {} };
-  if (body !== undefined) {
+  if (body instanceof FormData) {
+    opt.body = body;
+  } else if (body !== undefined) {
     opt.headers['Content-Type'] = 'application/json';
     opt.body = JSON.stringify(body);
   }
@@ -47,9 +49,15 @@ export const api = {
   addColorMap: (id, path) => req('POST', `/api/files/${id}/colormaps`, { path }),
   removeColorMap: (id, mapId) => req('DELETE', `/api/files/${id}/colormaps/${mapId}`),
 
-  // Attachments (graph exports)
+  // Attachments (graph exports, uploads, file references)
   attachments: (id) => req('GET', `/api/files/${id}/attachments`),
   export: (id, indexHtml) => req('POST', `/api/files/${id}/export`, { indexHtml }),
+  addAttachmentReference: (id, path) => req('POST', `/api/files/${id}/attachments/reference`, { path }),
+  uploadAttachment: (id, file) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    return req('POST', `/api/files/${id}/attachments/upload`, fd);
+  },
   deleteAttachment: (attId) => req('DELETE', `/api/attachments/${attId}`),
   attachmentUrl: (attId) => `/api/attachments/${attId}/download`,
 

@@ -127,11 +127,13 @@ public sealed class GraphService
             await GCGraphAsync(gid.Value);
     }
 
-    // Delete an emptied graph: its attachment zips + all of its rows.
+    // Delete an emptied graph: its stored attachment files + all of its rows.
+    // Reference attachments only point at files elsewhere on disk — never delete those.
     public async Task GCGraphAsync(int graphId)
     {
         foreach (var a in await _db.Attachments.Where(a => a.GraphId == graphId).ToListAsync())
         {
+            if (a.Kind == AttachmentKind.Reference || string.IsNullOrEmpty(a.StoredName)) continue;
             try
             {
                 var p = Path.Combine(_env.ContentRootPath, "attachments", a.StoredName);

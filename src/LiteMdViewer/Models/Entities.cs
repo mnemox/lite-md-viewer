@@ -87,18 +87,29 @@ public class GraphColorMap
 }
 
 /// <summary>
-/// A downloadable export bundle (a zip of a graph: the copied .md files + a generated
-/// index.html). Belongs to the graph, so it is visible from any of the graph's members.
+/// A downloadable file owned by a graph. Three kinds:
+///  - "export":    a generated zip of the graph (copied .md files + index.html), stored under attachments/.
+///  - "upload":    a user-uploaded file copied into attachments/ (deleting removes the physical file).
+///  - "reference": a pointer to an existing file elsewhere on disk (deleting removes only the record).
 /// </summary>
 public class Attachment
 {
     public int Id { get; set; }
-    public int GraphId { get; set; }                // the graph this export was made from
+    public int GraphId { get; set; }                // the graph this attachment belongs to
+    public string Kind { get; set; } = AttachmentKind.Export;
     public string FileName { get; set; } = "";      // display/download name, e.g. "30-06-2026_18-04-UTC.zip"
-    public string StoredName { get; set; } = "";    // on-disk name under attachments/, e.g. "<guid>.zip"
+    public string StoredName { get; set; } = "";    // on-disk name under attachments/ (export/upload); "" for references
+    public string? SourcePath { get; set; }         // absolute path of the referenced file (reference kind only)
     public long SizeBytes { get; set; }
-    public int NodeCount { get; set; }              // documents in the exported graph
+    public int NodeCount { get; set; }              // documents in the exported graph (export kind only)
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+public static class AttachmentKind
+{
+    public const string Export = "export";
+    public const string Upload = "upload";
+    public const string Reference = "reference";
 }
 
 /// <summary>Key/value application settings (theme, startup flags, last paths).</summary>

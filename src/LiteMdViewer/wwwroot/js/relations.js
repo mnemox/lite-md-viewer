@@ -23,7 +23,7 @@ let activeId = null;    // current background/active document
 let onNavigate = null;  // callback(id) → host reloads the background document
 let current = null;     // last graph response
 let layout = null;      // last computeLayout result
-let attachments = [];   // export bundles for the active document
+let attachments = [];   // graph attachments (exports, uploads, file references)
 let exporting = false;  // guard against concurrent exports
 let colorMaps = [];     // imported color-map schemas for the active graph
 let activeMap = null;   // currently-applied color map ({ ..., _byName: Map }) or null
@@ -65,21 +65,29 @@ function buildModal() {
           <div class="rel-3d hidden"></div>
         </div>
         <aside class="rel-companions">
-          <div class="rel-comp-head">
-            <span class="rel-head-title"><strong>Companions</strong><button class="icon-btn rel-help-btn" data-act="help-companions" title="What is a companion document?" aria-label="What is a companion document?">?</button></span>
-            <button class="btn" data-act="add-companion">+ Add</button>
+          <div class="rel-section" data-sec="companions">
+            <div class="rel-section-head" data-act="toggle-sec">
+              <span class="rel-caret" aria-hidden="true">▸</span>
+              <span class="rel-head-title"><strong>Companions</strong><button class="icon-btn rel-help-btn" data-act="help-companions" title="What is a companion document?" aria-label="What is a companion document?">?</button></span>
+              <button class="btn" data-act="add-companion">+ Add</button>
+            </div>
+            <div class="rel-section-body"><ul class="browse-list rel-comp-list"></ul></div>
           </div>
-          <ul class="browse-list rel-comp-list"></ul>
-          <div class="rel-colormaps">
-            <div class="rel-cmap-head">
+          <div class="rel-section" data-sec="colormaps">
+            <div class="rel-section-head" data-act="toggle-sec">
+              <span class="rel-caret" aria-hidden="true">▸</span>
               <span class="rel-head-title"><strong>Colors map</strong><button class="icon-btn rel-help-btn" data-act="help-colormaps" title="What is a colors map?" aria-label="What is a colors map?">?</button></span>
               <button class="btn" data-act="add-colormap">+ Add</button>
             </div>
-            <ul class="browse-list rel-cmap-list"></ul>
+            <div class="rel-section-body"><ul class="browse-list rel-cmap-list"></ul></div>
           </div>
-          <div class="rel-attachments hidden">
-            <div class="rel-attach-head"><strong>Attachments</strong></div>
-            <ul class="browse-list rel-attach-list"></ul>
+          <div class="rel-section" data-sec="attachments">
+            <div class="rel-section-head" data-act="toggle-sec">
+              <span class="rel-caret" aria-hidden="true">▸</span>
+              <span class="rel-head-title"><strong>Attachments</strong><button class="icon-btn rel-help-btn" data-act="help-attachments" title="What is an attachment?" aria-label="What is an attachment?">?</button></span>
+              <button class="btn" data-act="add-attachment">+ Add</button>
+            </div>
+            <div class="rel-section-body"><ul class="browse-list rel-attach-list"></ul></div>
           </div>
         </aside>
       </div>
@@ -87,15 +95,21 @@ function buildModal() {
 
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) return closeModal();
-    const act = e.target.closest('[data-act]')?.dataset.act;
+    // closest() finds the innermost [data-act], so buttons inside a section head
+    // (+ Add, ?) win over the head's own toggle action.
+    const actEl = e.target.closest('[data-act]');
+    const act = actEl?.dataset.act;
     if (act === 'close') closeModal();
     else if (act === 'in') zoomIn();
     else if (act === 'out') zoomOut();
     else if (act === 'fit') fitView();
+    else if (act === 'toggle-sec') actEl.closest('.rel-section')?.classList.toggle('open');
     else if (act === 'add-companion') addRelationFlow('companion', activeId);
     else if (act === 'add-colormap') addColorMapFlow();
+    else if (act === 'add-attachment') attachmentAddMenu(actEl);
     else if (act === 'help-companions') helpDialog('About companions', COMPANIONS_HELP);
     else if (act === 'help-colormaps') helpDialog('About colors maps', COLORMAPS_HELP);
+    else if (act === 'help-attachments') helpDialog('About attachments', ATTACHMENTS_HELP);
     else if (act === 'export') startExport();
     else if (act === 'mode-2d') setMode('2d');
     else if (act === 'mode-3d') setMode('3d');
@@ -320,6 +334,7 @@ async function startExport() {
   try {
     await api.export(activeId, buildExportHtml(current, layout));
     await refresh();
+    expandSection('attachments');
     toast('Exported', 'ok');
   } catch (e) { toast(e.message, 'error'); }
   finally { exporting = false; if (btn) { btn.disabled = false; btn.textContent = 'Export'; } }
@@ -392,42 +407,136 @@ function buildExportHtml(graph, layout) {
 </body></html>`;
 }
 
+// Open a collapsed side-menu section (e.g. after adding an item to it).
+function expandSection(sec) {
+  overlay?.querySelector(`.rel-section[data-sec="${sec}"]`)?.classList.add('open');
+}
+
+const DOWNLOAD_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>';
+
 function renderAttachments(list) {
-  const section = overlay.querySelector('.rel-attachments');
   const ul = overlay.querySelector('.rel-attach-list');
   ul.innerHTML = '';
-  section.classList.toggle('hidden', !list.length);
 
   // Head "Download" button → the most recent export (list is newest-first).
+  const exports = list.filter((a) => a.kind === 'export');
   const dl = overlay.querySelector('.rel-download-btn');
-  if (list.length) {
-    dl.href = api.attachmentUrl(list[0].id);
-    dl.setAttribute('download', list[0].fileName);
+  if (exports.length) {
+    dl.href = api.attachmentUrl(exports[0].id);
+    dl.setAttribute('download', exports[0].fileName);
     dl.classList.remove('hidden');
   } else {
     dl.removeAttribute('href');
     dl.classList.add('hidden');
   }
 
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'disabled';
+    li.textContent = 'No attachments yet.';
+    ul.appendChild(li);
+    return;
+  }
+
   for (const a of list) {
     const li = document.createElement('li');
-    const icon = document.createElement('span'); icon.textContent = '📦';
-    const link = document.createElement('a');
-    link.className = 'name'; link.href = api.attachmentUrl(a.id); link.textContent = a.fileName;
-    link.setAttribute('download', a.fileName);
-    link.title = `${a.nodeCount} document(s) · ${formatSize(a.sizeBytes)}`;
+    const icon = document.createElement('span');
+    icon.textContent = a.kind === 'reference' ? '🔗' : a.kind === 'upload' ? '📎' : '📦';
+    icon.title = a.kind === 'reference' ? 'Referenced file (stays where it is on disk)'
+      : a.kind === 'upload' ? 'Uploaded file (stored by the application)'
+      : 'Graph export';
+
+    let name;
+    if (a.missing) {
+      name = document.createElement('span');
+      name.className = 'name';
+      name.style.color = 'var(--danger)';
+      name.title = 'The referenced file was not found on disk';
+    } else {
+      name = document.createElement('a');
+      name.className = 'name';
+      name.href = api.attachmentUrl(a.id);
+      name.setAttribute('download', a.fileName);
+      name.title = (a.kind === 'export' ? `${a.nodeCount} document(s) · ` : '') + formatSize(a.sizeBytes);
+    }
+    name.textContent = a.fileName;
+    name.dir = 'auto';
+
+    const dlb = document.createElement('a');
+    dlb.className = 'icon-btn rel-att-dl';
+    dlb.innerHTML = DOWNLOAD_SVG;
+    if (a.missing) {
+      dlb.classList.add('disabled');
+      dlb.title = 'The referenced file was not found on disk';
+    } else {
+      dlb.href = api.attachmentUrl(a.id);
+      dlb.setAttribute('download', a.fileName);
+      dlb.title = 'Download';
+    }
+
     const rm = document.createElement('button');
-    rm.className = 'icon-btn rel-rm'; rm.textContent = '✕'; rm.title = 'Delete export';
-    rm.onclick = (e) => { e.stopPropagation(); deleteAttachment(a.id, a.fileName); };
-    li.append(icon, link, rm);
+    rm.className = 'icon-btn rel-rm'; rm.textContent = '✕';
+    rm.title = a.kind === 'reference' ? 'Remove the reference (the file is kept)' : 'Delete file';
+    rm.onclick = (e) => { e.stopPropagation(); deleteAttachment(a); };
+
+    li.append(icon, name, dlb, rm);
     ul.appendChild(li);
   }
 }
 
-async function deleteAttachment(attId, name) {
-  if (!(await confirmDialog(`Delete export “${name}”? This removes the downloadable file.`, { okLabel: 'Delete', danger: true }))) return;
-  try { await api.deleteAttachment(attId); await refresh(); toast('Deleted', 'ok'); }
-  catch (e) { toast(e.message, 'error'); }
+async function deleteAttachment(a) {
+  const msg = a.kind === 'reference'
+    ? `Remove the reference to “${a.fileName}”? The file itself is kept on disk.`
+    : a.kind === 'upload'
+      ? `Delete “${a.fileName}”? The uploaded file is permanently deleted.`
+      : `Delete export “${a.fileName}”? This removes the downloadable file.`;
+  const okLabel = a.kind === 'reference' ? 'Remove' : 'Delete';
+  if (!(await confirmDialog(msg, { okLabel, danger: true }))) return;
+  try {
+    await api.deleteAttachment(a.id);
+    await refresh();
+    toast(a.kind === 'reference' ? 'Reference removed' : 'Deleted', 'ok');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// "+ Add" in the Attachments header: attach by reference or upload a copy.
+function attachmentAddMenu(anchor) {
+  popupMenu(anchor, [
+    { label: 'Add file reference…', onClick: () => addAttachmentReferenceFlow() },
+    { label: 'Upload file…', onClick: () => uploadAttachmentFlow() },
+  ]);
+}
+
+function addAttachmentReferenceFlow() {
+  openBrowse(async (path) => {
+    try {
+      await api.addAttachmentReference(activeId, path);
+      await refresh();
+      expandSection('attachments');
+      toast('File attached by reference', 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+  }, {
+    kind: 'any',
+    title: 'Attach a file by reference',
+    addLabel: 'Attach',
+    pathPlaceholder: '…or paste a full path to a file',
+  });
+}
+
+function uploadAttachmentFlow() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.onchange = async () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    try {
+      await api.uploadAttachment(activeId, f);
+      await refresh();
+      expandSection('attachments');
+      toast('File uploaded', 'ok');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  input.click();
 }
 
 // ---- section help (the "?" icons in the Companions / Colors map headers) ----
@@ -463,6 +572,19 @@ const COLORMAPS_HELP = `
     <li><code>listName</code> is optional — the name shown in the list (defaults to the file name).</li>
     <li><code>legend</code> is optional — shown as a tooltip explaining what each color means.</li>
   </ul>`;
+
+const ATTACHMENTS_HELP = `
+  <p>An <strong>attachment</strong> is a file kept with this graph. There are three kinds:</p>
+  <ul>
+    <li><strong>🔗 Reference</strong> — points at a file elsewhere on disk. ✕ removes only the
+      reference; the file itself is kept.</li>
+    <li><strong>📎 Upload</strong> — a copy stored inside the application's files folder.
+      ✕ permanently deletes the stored file.</li>
+    <li><strong>📦 Export</strong> — a zip bundle created by the Export button.
+      ✕ permanently deletes the bundle.</li>
+  </ul>
+  <p>Use <strong>+ Add</strong> to attach a file by reference or to upload one. Every attachment
+  can be downloaded to any location via its download button or by clicking its name.</p>`;
 
 function helpDialog(title, bodyHtml) {
   const ov = document.createElement('div');
@@ -573,6 +695,7 @@ async function addColorMapFlow() {
     try {
       await api.addColorMap(activeId, path);
       await refresh();
+      expandSection('colormaps');
       toast('Colors map referenced', 'ok');
     } catch (e) { toast(e.message, 'error'); }
   }, {
@@ -599,6 +722,7 @@ async function addRelationFlow(kind, baseId) {
   try {
     await api.addRelation(baseId, picked, kind);
     await refresh();
+    if (kind === 'companion') expandSection('companions');
     toast('Linked', 'ok');
   } catch (e) { toast(e.message, 'error'); }
 }

@@ -47,7 +47,9 @@ public record ColorMapDto(
     int Id, string ListName, string FilePath,
     IEnumerable<ColorLegendDto> Legend, IEnumerable<ColorFileDto> Files);
 
-// ---- attachments (graph exports) ----
+// ---- attachments (graph exports, uploads, file references) ----
 public record ExportRequest(string IndexHtml);
+public record AddAttachmentReferenceRequest(string Path);
 public record AttachmentDto(
-    int Id, string FileName, long SizeBytes, int NodeCount, DateTime CreatedUtc);
+    int Id, string FileName, long SizeBytes, int NodeCount, DateTime CreatedUtc,
+    string Kind, bool Missing);
