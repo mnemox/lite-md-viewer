@@ -66,13 +66,13 @@ function buildModal() {
         </div>
         <aside class="rel-companions">
           <div class="rel-comp-head">
-            <strong>Companions</strong>
+            <span class="rel-head-title"><strong>Companions</strong><button class="icon-btn rel-help-btn" data-act="help-companions" title="What is a companion document?" aria-label="What is a companion document?">?</button></span>
             <button class="btn" data-act="add-companion">+ Add</button>
           </div>
           <ul class="browse-list rel-comp-list"></ul>
           <div class="rel-colormaps">
             <div class="rel-cmap-head">
-              <strong>Colors map</strong>
+              <span class="rel-head-title"><strong>Colors map</strong><button class="icon-btn rel-help-btn" data-act="help-colormaps" title="What is a colors map?" aria-label="What is a colors map?">?</button></span>
               <button class="btn" data-act="add-colormap">+ Add</button>
             </div>
             <ul class="browse-list rel-cmap-list"></ul>
@@ -94,6 +94,8 @@ function buildModal() {
     else if (act === 'fit') fitView();
     else if (act === 'add-companion') addRelationFlow('companion', activeId);
     else if (act === 'add-colormap') addColorMapFlow();
+    else if (act === 'help-companions') helpDialog('About companions', COMPANIONS_HELP);
+    else if (act === 'help-colormaps') helpDialog('About colors maps', COLORMAPS_HELP);
     else if (act === 'export') startExport();
     else if (act === 'mode-2d') setMode('2d');
     else if (act === 'mode-3d') setMode('3d');
@@ -110,6 +112,7 @@ function onKey(e) {
   if (!overlay) return;
   const browse = document.getElementById('browseModal');
   if (document.querySelector('.pick-list') || document.querySelector('.popup-menu')
+    || document.querySelector('.rel-help-modal')
     || (browse && !browse.classList.contains('hidden'))) return; // nested UI owns keys
   if (e.key === 'Escape') { e.stopPropagation(); closeModal(); }
   else if (e.key === '+' || e.key === '=') zoomIn();
@@ -425,6 +428,60 @@ async function deleteAttachment(attId, name) {
   if (!(await confirmDialog(`Delete export “${name}”? This removes the downloadable file.`, { okLabel: 'Delete', danger: true }))) return;
   try { await api.deleteAttachment(attId); await refresh(); toast('Deleted', 'ok'); }
   catch (e) { toast(e.message, 'error'); }
+}
+
+// ---- section help (the "?" icons in the Companions / Colors map headers) ----
+const COMPANIONS_HELP = `
+  <p>A <strong>companion</strong> is a document that relates to this graph without being part of it.
+  It is not drawn as a node and has no connections — it is kept alongside the graph as
+  related material (background notes, meeting minutes, a checklist, …).</p>
+  <ul>
+    <li><strong>+ Add</strong> links an existing managed document as a companion.</li>
+    <li>Click a companion's name to open it as the active document.</li>
+    <li>✕ removes the companion link only — the document itself is kept.</li>
+  </ul>`;
+
+const COLORMAPS_HELP = `
+  <p>A <strong>colors map</strong> is a JSON file that recolors the borders of graph nodes,
+  e.g. to show status or ownership. Click a map in the list to apply it (click again to turn
+  it off). Documents are matched to entries by file name, case-insensitively.</p>
+  <p>The referenced <code>.json</code> file must look like this:</p>
+  <pre><code>{
+  "listName": "Review status",
+  "legend": [
+    { "color": "#2f9e44", "meaning": "Approved" },
+    { "color": "#e8590c", "meaning": "Needs review" }
+  ],
+  "files": [
+    { "filePath": "readme.md",    "color": "#2f9e44" },
+    { "filePath": "docs/spec.md", "color": "#e8590c" }
+  ]
+}</code></pre>
+  <ul>
+    <li><code>files</code> is required — at least one entry with both <code>filePath</code> and <code>color</code>.</li>
+    <li><code>color</code> accepts any CSS color (hex, named, rgb…).</li>
+    <li><code>listName</code> is optional — the name shown in the list (defaults to the file name).</li>
+    <li><code>legend</code> is optional — shown as a tooltip explaining what each color means.</li>
+  </ul>`;
+
+function helpDialog(title, bodyHtml) {
+  const ov = document.createElement('div');
+  ov.className = 'modal rel-help-modal';
+  ov.innerHTML = `
+    <div class="modal-card" style="width:min(560px,96vw)">
+      <div class="modal-head"><strong></strong>
+        <button class="icon-btn" data-act="close" aria-label="Close">✕</button></div>
+      <div class="rel-help-body"></div>
+    </div>`;
+  ov.querySelector('.modal-head strong').textContent = title;
+  ov.querySelector('.rel-help-body').innerHTML = bodyHtml;
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onk); };
+  const onk = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  ov.addEventListener('click', (e) => {
+    if (e.target === ov || e.target.closest('[data-act="close"]')) close();
+  });
+  document.addEventListener('keydown', onk);
+  document.body.appendChild(ov);
 }
 
 // ---- companions ----
