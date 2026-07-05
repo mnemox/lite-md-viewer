@@ -81,6 +81,8 @@ body.file-open #fileTitle   { display: inline; }
 body.file-open #fileStatus  { display: inline; }
 body.file-open .topbar .bar-center { display: inline-flex; }
 body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMode's .hidden */
+/* the dashboard is not a file: keep the center View/Edit/Details/Relations group hidden */
+body.dashboard .topbar .bar-center { display: none !important; }
 
 /* narrow screens: drop title/badge so the centered View/Edit + actions still fit
    (the file name stays visible in the drawer tree) */
@@ -143,6 +145,17 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
 }
 [dir="rtl"] .drawer { transform: translateX(104%); }
 .drawer.open { transform: translateX(0); }
+/* top part: dashboard navigation, separated from the file list below */
+.drawer-top { flex: 0 0 auto; padding: 8px; border-block-end: 1px solid var(--border); }
+.drawer-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; border: 1px solid transparent; background: transparent; color: var(--text);
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; text-align: start;
+}
+.drawer-nav-item:hover { background: var(--bg-elev-2); }
+.drawer-nav-item.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.drawer-nav-item svg { flex: 0 0 auto; }
+
 .drawer-head { display: flex; align-items: center; gap: 5px; padding: 10px; border-block-end: 1px solid var(--border); }
 /* lightweight buttons; the three actions share the row, close pinned at the end */
 .drawer-head .btn {
@@ -267,6 +280,9 @@ body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMo
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* dashboard: an intentionally empty screen filling the content area */
+.dashboard { height: 100%; }
 
 .welcome { max-width: 560px; margin: 12vh auto; text-align: center; padding: 20px; }
 .welcome h1 { margin: 0 0 8px; }

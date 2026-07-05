@@ -86,8 +86,30 @@ const treeHandlers = {
   },
 };
 
+// ---------- dashboard ----------
+// An empty screen shown in the same layout. Not a file, so the center toolbar
+// (View/Edit/Details/Relations) stays hidden.
+function openDashboard() {
+  closeRelations();
+  state.active = null; state.text = '';
+  document.body.classList.remove('file-open');
+  document.body.classList.add('dashboard');
+  $('dashboardBtn').classList.add('active');
+  $('welcome').classList.add('hidden');
+  $('viewer').classList.add('hidden');
+  $('editor').classList.add('hidden');
+  $('loading').classList.add('hidden');
+  $('dashboard').classList.remove('hidden');
+  renderTree($('tree'), state.treeData, treeHandlers, null);
+  if (urlFileId() != null) history.replaceState({}, '', location.pathname);
+}
+
 // ---------- file open / view / edit ----------
 async function openFile(id, { push = true } = {}) {
+  // leaving the dashboard for a real file
+  document.body.classList.remove('dashboard');
+  $('dashboardBtn').classList.remove('active');
+  $('dashboard').classList.add('hidden');
   // show the loading spinner over an emptied content area while we fetch
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
@@ -195,6 +217,9 @@ async function deleteDisk(file) {
 function clearActive() {
   state.active = null; state.text = '';
   document.body.classList.remove('file-open');
+  document.body.classList.remove('dashboard');
+  $('dashboardBtn').classList.remove('active');
+  $('dashboard').classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
   $('loading').classList.add('hidden');
@@ -310,6 +335,7 @@ async function init() {
   });
 
   $('themeBtn').onclick = toggleTheme;
+  $('dashboardBtn').onclick = openDashboard;
   $('newFileBtn').onclick = startNewFile;
   $('addBtn').onclick = toggleAddMenu;
   $('addFileOpt').onclick = () => { closeAddMenu(); startAddFile(); };
