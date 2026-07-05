@@ -5,6 +5,7 @@ import { applyTheme, currentTheme } from './theme.js';
 import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
 import { openRelations, closeRelations } from './relations.js';
+import { initDashboard, renderDashboardNotes } from './dashboard.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -101,6 +102,7 @@ function openDashboard() {
   $('loading').classList.add('hidden');
   $('dashboard').classList.remove('hidden');
   renderTree($('tree'), state.treeData, treeHandlers, null);
+  renderDashboardNotes();
   if (urlFileId() != null) history.replaceState({}, '', location.pathname);
 }
 
@@ -312,6 +314,7 @@ async function init() {
   catch { applyTheme(currentTheme()); }
 
   initBrowse();
+  initDashboard();
 
   // Any header button (except Relations itself, which opens it) closes the relations modal.
   document.querySelector('.topbar').addEventListener('click', (e) => {

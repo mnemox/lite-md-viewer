@@ -69,4 +69,10 @@ export const api = {
 
   settings: () => req('GET', '/api/settings'),
   setSetting: (key, value) => req('PUT', `/api/settings/${encodeURIComponent(key)}`, { value }),
+
+  // Dashboard sticky notes
+  dashboardNotes: () => req('GET', '/api/dashboard/notes'),
+  createNote: (body) => req('POST', '/api/dashboard/notes', body),
+  patchNote: (id, patch) => req('PATCH', `/api/dashboard/notes/${id}`, patch),
+  deleteNote: (id) => req('DELETE', `/api/dashboard/notes/${id}`),
 };

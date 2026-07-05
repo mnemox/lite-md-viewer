@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<GraphColorMap> GraphColorMaps => Set<GraphColorMap>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Setting> Settings => Set<Setting>();
+    public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {

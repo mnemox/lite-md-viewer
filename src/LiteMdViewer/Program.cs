@@ -32,6 +32,7 @@ using (var scope = app.Services.CreateScope())
     EnsureGraphTables(db);                       // add graph tables to a pre-existing DB (no-op on fresh)
     MigrateLegacyToGraph(db, app.Environment);   // one-time: legacy Relation/Attachment(FileId) → graph model
     EnsureAttachmentColumns(db);                 // add Kind/SourcePath to a pre-existing Attachments table
+    EnsureDashboardTable(db);                    // add dashboard-notes table to a pre-existing DB (no-op on fresh)
     SeedSettings(db);
     openBrowser = db.Settings.Find("openBrowserOnStart")?.Value == "true";
 }
@@ -46,6 +47,7 @@ app.MapBrowse();
 app.MapSettings();
 app.MapRelations();
 app.MapAttachments();
+app.MapDashboard();
 
 app.MapFallbackToFile("index.html");
 
@@ -97,6 +99,23 @@ static void EnsureGraphTables(AppDbContext db)
         ""Json"" TEXT NOT NULL,
         ""CreatedUtc"" TEXT NOT NULL);");
     db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_GraphColorMaps_GraphId"" ON ""GraphColorMaps"" (""GraphId"");");
+}
+
+// Adds the dashboard-notes table to an already-created DB (EnsureCreated is a no-op on an
+// existing DB; on a fresh DB it already built this from the model, so this is a no-op).
+// Column names/types match EF's conventions so fresh and migrated DBs are identical.
+static void EnsureDashboardTable(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""DashboardNotes"" (
+        ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_DashboardNotes"" PRIMARY KEY AUTOINCREMENT,
+        ""Kind"" TEXT NOT NULL,
+        ""FrontText"" TEXT NOT NULL,
+        ""BackText"" TEXT NOT NULL,
+        ""X"" REAL NOT NULL,
+        ""Y"" REAL NOT NULL,
+        ""Z"" INTEGER NOT NULL,
+        ""CreatedUtc"" TEXT NOT NULL,
+        ""UpdatedUtc"" TEXT NOT NULL);");
 }
 
 // Adds the attachment-kind columns to an already-created Attachments table (EnsureCreated

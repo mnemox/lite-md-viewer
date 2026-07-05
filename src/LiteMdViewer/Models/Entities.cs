@@ -118,3 +118,29 @@ public class Setting
     public string Key { get; set; } = "";
     public string? Value { get; set; }
 }
+
+/// <summary>
+/// A sticky note placed on the dashboard board. Two kinds:
+///  - "note": a single markdown side (<see cref="FrontText"/>; <see cref="BackText"/> unused).
+///  - "flip": a two-sided card that flips between <see cref="FrontText"/> and <see cref="BackText"/>.
+/// <see cref="X"/>/<see cref="Y"/> are the note's position on the board (persisted so a
+/// dragged note stays put across refreshes); <see cref="Z"/> is the stacking order.
+/// </summary>
+public class DashboardNote
+{
+    public int Id { get; set; }
+    public string Kind { get; set; } = DashboardNoteKind.Note;  // "note" | "flip"
+    public string FrontText { get; set; } = "";
+    public string BackText { get; set; } = "";                   // "" for plain notes
+    public double X { get; set; }
+    public double Y { get; set; }
+    public int Z { get; set; }                                   // stacking order (bring-to-front on drag)
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+public static class DashboardNoteKind
+{
+    public const string Note = "note";
+    public const string Flip = "flip";
+}
