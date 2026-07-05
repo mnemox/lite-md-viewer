@@ -88,8 +88,23 @@
         <button class="btn primary" id="welcomeAdd">+ Add a file</button>
       </section>
 
-      <!-- dashboard: an empty screen shown in the same app layout -->
-      <section id="dashboard" class="dashboard hidden"></section>
+      <!-- dashboard: a board of free-positioned sticky notes -->
+      <section id="dashboard" class="dashboard hidden">
+        <div id="dashboardBoard" class="dash-board" aria-label="Notes board"></div>
+        <div class="dash-fab-wrap">
+          <div id="dashFabMenu" class="dash-fab-menu hidden" role="menu" aria-label="Add a note">
+            <button id="addNoteOpt" class="dash-fab-item" role="menuitem">
+              <span class="dfi-icon">📝</span>
+              <span class="dfi-text"><span class="dfi-label">Add note</span><span class="dfi-desc">A markdown sticky note</span></span>
+            </button>
+            <button id="addFlipNoteOpt" class="dash-fab-item" role="menuitem">
+              <span class="dfi-icon">🔁</span>
+              <span class="dfi-text"><span class="dfi-label">Add flipping note</span><span class="dfi-desc">A two-sided card that flips</span></span>
+            </button>
+          </div>
+          <button id="dashFab" class="dash-fab" title="Add a note" aria-haspopup="menu" aria-expanded="false" aria-label="Add a note">+</button>
+        </div>
+      </section>
 
       <article id="viewer" class="viewer markdown-body hidden" dir="auto"></article>
 

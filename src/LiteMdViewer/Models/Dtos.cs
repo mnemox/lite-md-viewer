@@ -10,6 +10,8 @@ public record CreateFolderRequest(string Name, int? ParentId);
 public record PatchFolderRequest(string? Name, int? ParentId, bool MoveToRoot = false, int? SortOrder = null);
 public record SaveContentRequest(string Text);
 public record SettingRequest(string? Value);
+public record CreateNoteRequest(string Kind, string FrontText, string BackText, double X, double Y);
+public record PatchNoteRequest(string? FrontText, string? BackText, double? X, double? Y, int? Z);
 
 // ---- responses ----
 public record FileDto(
@@ -25,6 +27,9 @@ public record BrowseEntry(string Name, string Path, bool IsDir, bool IsMarkdown,
 public record BrowseResult(string? Path, string? Parent, bool IsRoot, IEnumerable<BrowseEntry> Entries);
 
 public record ContentDto(int Id, string Title, string FullPath, string Text);
+
+public record NoteDto(
+    int Id, string Kind, string FrontText, string BackText, double X, double Y, int Z);
 
 public record FileDetailsDto(
     int Id, string Title, string FullPath,
