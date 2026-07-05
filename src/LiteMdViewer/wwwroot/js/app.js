@@ -329,6 +329,8 @@ async function init() {
   // browser back/forward.
   window.addEventListener('popstate', () => {
     const id = urlFileId();
+    // Same file already active (e.g. Back that only closed the relations modal): nothing to do.
+    if (id != null && state.active && id === state.active.id) return;
     if (id != null && state.treeData.files.some((f) => f.id === id)) openFile(id, { push: false });
     else if (state.active) clearActive();
   });

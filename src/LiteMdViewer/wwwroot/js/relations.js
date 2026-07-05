@@ -115,6 +115,11 @@ function buildModal() {
     else if (act === 'mode-3d') setMode('3d');
   });
   document.addEventListener('keydown', onKey);
+  // Reflect the open modal in history + the URL so the browser Back button closes it
+  // (handled by onPopState). urlFileId() reads location.search, so the #relations hash
+  // stays invisible to file deep-linking.
+  window.addEventListener('popstate', onPopState);
+  history.pushState({ ...history.state, relations: true }, '', location.pathname + location.search + '#relations');
   document.body.appendChild(overlay);
 
   const viewport = overlay.querySelector('.rel-viewport');
@@ -134,9 +139,26 @@ function onKey(e) {
   else if (e.key === '0') fitView();
 }
 
+// UI-initiated close (✕ button, Escape, backdrop click). Unwind the history entry we
+// pushed on open so the URL and back/forward stack return to the pre-modal state. If a
+// background node was opened meanwhile it pushed its own entry over ours, so our marker
+// is no longer on top — in that case just tear down without touching history.
 function closeModal() {
   if (!overlay) return;
+  if (history.state && history.state.relations) history.back(); // → popstate → teardown()
+  else teardown();
+}
+
+// Back/forward button while the modal is open: our pushed entry has already been popped,
+// so just tear the modal down here (don't touch history).
+function onPopState() {
+  if (overlay) teardown();
+}
+
+function teardown() {
+  if (!overlay) return;
   document.removeEventListener('keydown', onKey);
+  window.removeEventListener('popstate', onPopState);
   g3d?.dispose(); g3d = null;
   overlay.remove();
   overlay = null; pz = null; current = null; layout = null;
