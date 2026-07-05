@@ -149,6 +149,12 @@ function closeModal() {
   else teardown();
 }
 
+// Close the modal from outside the graph UI (e.g. header buttons or the side drawer).
+// No-op when the modal isn't open.
+export function closeRelations() {
+  if (overlay) closeModal();
+}
+
 // Back/forward button while the modal is open: our pushed entry has already been popped,
 // so just tear the modal down here (don't touch history).
 function onPopState() {

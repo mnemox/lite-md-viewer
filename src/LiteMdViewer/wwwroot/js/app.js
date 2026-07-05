@@ -4,7 +4,7 @@ import { renderMarkdown } from './render.js';
 import { applyTheme, currentTheme } from './theme.js';
 import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
-import { openRelations } from './relations.js';
+import { openRelations, closeRelations } from './relations.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -21,6 +21,7 @@ const drawer = () => $('drawer');
 const scrim = () => $('scrim');
 
 function openDrawer() {
+  closeRelations();          // opening the side menu dismisses the relations overlay
   drawer().classList.add('open');
   drawer().setAttribute('aria-hidden', 'false');
   $('menuBtn').setAttribute('aria-expanded', 'true');
@@ -286,6 +287,12 @@ async function init() {
   catch { applyTheme(currentTheme()); }
 
   initBrowse();
+
+  // Any header button (except Relations itself, which opens it) closes the relations modal.
+  document.querySelector('.topbar').addEventListener('click', (e) => {
+    if (e.target.closest('#relationsBtn')) return;
+    if (e.target.closest('button')) closeRelations();
+  }, true);
 
   $('menuBtn').onclick = () => setPinned(!pinned);
   $('menuBtn').addEventListener('mouseenter', () => { if (!pinned) openDrawer(); });
