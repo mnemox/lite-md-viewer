@@ -4,6 +4,7 @@ namespace LiteMdViewer.Models;
 public record AddFileRequest(string Path, int? FolderId);
 public record AddFolderFilesRequest(string Path, int? FolderId);
 public record NewFileRequest(string Dir, string Name, int? FolderId);
+public record MoveFileRequest(string Dir, string? NewName = null);
 public record PatchFileRequest(string? Title, int? FolderId, bool MoveToRoot = false, int? SortOrder = null);
 public record CreateFolderRequest(string Name, int? ParentId);
 public record PatchFolderRequest(string? Name, int? ParentId, bool MoveToRoot = false, int? SortOrder = null);

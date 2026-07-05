@@ -31,6 +31,7 @@ export const api = {
   addFolderFiles: (path, folderId) => req('POST', '/api/files/folder', { path, folderId: folderId ?? null }),
   newFile: (dir, name, folderId) => req('POST', '/api/files/new', { dir, name, folderId: folderId ?? null }),
   patchFile: (id, patch) => req('PATCH', `/api/files/${id}`, patch),
+  moveFileToDisk: (id, dir, newName) => req('POST', `/api/files/${id}/move`, { dir, newName: newName ?? null }),
   removeFile: (id) => req('DELETE', `/api/files/${id}`),
   deleteDisk: (id) => req('DELETE', `/api/files/${id}/disk`),
   content: (id) => req('GET', `/api/files/${id}/content`),

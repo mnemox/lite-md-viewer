@@ -185,6 +185,68 @@ public static class FilesEndpoints
             return Results.Ok(ToDto(f));
         });
 
+        // Move the real file to another physical folder and update its path in the DB.
+        // Keeps the same DB Id (so relations/graph links stay intact) and DB folder assignment.
+        g.MapPost("/files/{id:int}/move", async (int id, MoveFileRequest req, AppDbContext db) =>
+        {
+            var f = await db.Files.FindAsync(id);
+            if (f is null) return Results.NotFound();
+
+            if (string.IsNullOrWhiteSpace(req.Dir))
+                return Results.BadRequest(new { error = "A target folder is required." });
+            if (!Directory.Exists(req.Dir))
+                return Results.BadRequest(new { error = "Target folder does not exist." });
+
+            var name = string.IsNullOrWhiteSpace(req.NewName)
+                ? Path.GetFileName(f.FullPath)
+                : req.NewName.Trim();
+
+            var ext = Path.GetExtension(name);
+            if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
+                !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
+                return Results.BadRequest(new { error = "Only .md or .markdown files are supported." });
+
+            string target;
+            try { target = Path.GetFullPath(Path.Combine(req.Dir, name)); }
+            catch { return Results.BadRequest(new { error = "Invalid path." }); }
+
+            var oldPath = f.FullPath;
+
+            // No-op if the file is already at the target location.
+            if (string.Equals(target, oldPath, StringComparison.OrdinalIgnoreCase))
+                return Results.Ok(ToDto(f));
+
+            if (!File.Exists(oldPath))
+                return Results.BadRequest(new { error = "The file no longer exists on disk." });
+
+            var all = await db.Files.ToListAsync();
+            var dup = all.FirstOrDefault(x => x.Id != id &&
+                string.Equals(x.FullPath, target, StringComparison.OrdinalIgnoreCase));
+            if (dup != null)
+                return Results.Conflict(new { error = "Another managed file already lives at that path.", id = dup.Id });
+            if (File.Exists(target))
+                return Results.Conflict(new { error = "A file with that name already exists in the target folder." });
+
+            try { File.Move(oldPath, target); }
+            catch (Exception ex) { return Results.Problem("Could not move file: " + ex.Message); }
+
+            f.FullPath = target;
+            f.LastWriteUtc = File.GetLastWriteTimeUtc(target);
+
+            // Fix up any reference-attachments elsewhere that point at the old absolute path.
+            var refs = await db.Attachments
+                .Where(a => a.Kind == AttachmentKind.Reference && a.SourcePath != null)
+                .ToListAsync();
+            foreach (var a in refs)
+            {
+                if (string.Equals(a.SourcePath, oldPath, StringComparison.OrdinalIgnoreCase))
+                    a.SourcePath = target;
+            }
+
+            await db.SaveChangesAsync();
+            return Results.Ok(ToDto(f));
+        });
+
         // Remove from management only (does NOT touch the file on disk).
         g.MapDelete("/files/{id:int}", async (int id, AppDbContext db, GraphService graph) =>
         {

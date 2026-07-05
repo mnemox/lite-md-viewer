@@ -62,6 +62,15 @@ const treeHandlers = {
     try { await api.patchFile(id, folderId == null ? { moveToRoot: true } : { folderId }); await refreshTree(); }
     catch (e) { toast(e.message, 'error'); }
   },
+  moveFileToDisk: (id) => {
+    openBrowse(async (path) => {
+      try {
+        await api.moveFileToDisk(id, path);
+        await refreshTree();
+        toast('File moved', 'ok');
+      } catch (e) { toast(e.message, 'error'); }
+    }, { mode: 'folder', title: 'Move file to folder…', addLabel: 'Move here', pathPlaceholder: '…or paste a full destination folder path' });
+  },
   removeFromList,
   deleteDisk,
   addFolder: (parentId) => addFolder(parentId),

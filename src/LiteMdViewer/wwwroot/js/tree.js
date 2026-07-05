@@ -28,7 +28,15 @@ export function popupMenu(anchor, items) {
   document.body.appendChild(menu);
   const r = anchor.getBoundingClientRect();
   menu.style.insetInlineStart = Math.min(r.left, window.innerWidth - 190) + 'px';
-  menu.style.insetBlockStart = (r.bottom + 4) + 'px';
+  // Flip above the anchor when there isn't enough room below (avoids running off the bottom edge).
+  const gap = 4;
+  const menuH = menu.offsetHeight;
+  const spaceBelow = window.innerHeight - r.bottom;
+  let top = (spaceBelow >= menuH + gap || r.top < menuH + gap)
+    ? r.bottom + gap            // open downward
+    : r.top - menuH - gap;      // open upward
+  top = Math.max(gap, Math.min(top, window.innerHeight - menuH - gap));
+  menu.style.insetBlockStart = top + 'px';
   const off = (e) => { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('mousedown', off); } };
   setTimeout(() => document.addEventListener('mousedown', off), 0);
 }
@@ -114,6 +122,7 @@ export function renderTree(container, data, handlers, activeFileId) {
       popupMenu(kebab, [
         { label: 'Rename', onClick: () => editableLabel(label, file.title, (v) => handlers.renameFile(file.id, v)) },
         { label: 'Move to top level', onClick: () => handlers.moveFile(file.id, null) },
+        { label: 'Move to folder…', onClick: () => handlers.moveFileToDisk(file.id) },
         { label: 'Remove from list', onClick: () => handlers.removeFromList(file) },
         { label: 'Delete from disk…', danger: true, onClick: () => handlers.deleteDisk(file) },
       ]);
