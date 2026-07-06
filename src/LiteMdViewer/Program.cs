@@ -15,6 +15,9 @@ builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite($"Data Source={
 builder.Services.AddSingleton<FsBrowser>();
 builder.Services.AddScoped<GraphService>();
 
+// Background worker: mirrors every managed file's content into the DB and keeps it fresh.
+builder.Services.AddHostedService<FileSyncService>();
+
 // HTTP only, loopback only — the disk-touching endpoints must never be off-box.
 // PORT (set by dev/preview harnesses) overrides the default port.
 var portOverride = Environment.GetEnvironmentVariable("PORT");
@@ -33,6 +36,11 @@ using (var scope = app.Services.CreateScope())
     MigrateLegacyToGraph(db, app.Environment);   // one-time: legacy Relation/Attachment(FileId) → graph model
     EnsureAttachmentColumns(db);                 // add Kind/SourcePath to a pre-existing Attachments table
     EnsureDashboardTable(db);                    // add dashboard-notes table to a pre-existing DB (no-op on fresh)
+    EnsureFileContentsTable(db);                 // add file-content mirror table to a pre-existing DB (no-op on fresh)
+    // A background writer (FileSyncService) now competes with request handlers for the
+    // single SQLite file. WAL lets readers and one writer proceed concurrently; the busy
+    // timeout makes any remaining contention wait briefly instead of throwing "locked".
+    db.Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;");
     SeedSettings(db);
     openBrowser = db.Settings.Find("openBrowserOnStart")?.Value == "true";
 }
@@ -116,6 +124,19 @@ static void EnsureDashboardTable(AppDbContext db)
         ""Z"" INTEGER NOT NULL,
         ""CreatedUtc"" TEXT NOT NULL,
         ""UpdatedUtc"" TEXT NOT NULL);");
+}
+
+// Adds the file-content mirror table to an already-created DB (EnsureCreated is a no-op on an
+// existing DB; on a fresh DB it already built this from the model, so this is a no-op).
+// Column names/types match EF's conventions so fresh and migrated DBs are identical.
+static void EnsureFileContentsTable(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""FileContents"" (
+        ""FileId"" INTEGER NOT NULL CONSTRAINT ""PK_FileContents"" PRIMARY KEY,
+        ""Content"" TEXT NOT NULL,
+        ""ContentHash"" TEXT NOT NULL,
+        ""SourceWriteUtc"" TEXT NOT NULL,
+        ""SyncedUtc"" TEXT NOT NULL);");
 }
 
 // Adds the attachment-kind columns to an already-created Attachments table (EnsureCreated

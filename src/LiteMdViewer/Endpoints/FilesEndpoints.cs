@@ -253,6 +253,7 @@ public static class FilesEndpoints
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
             await graph.RemoveFileEverywhereAsync(id);
+            await RemoveMirrorAsync(db, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
@@ -269,10 +270,20 @@ public static class FilesEndpoints
             }
             catch (Exception ex) { return Results.Problem("Could not delete file: " + ex.Message); }
             await graph.RemoveFileEverywhereAsync(id);
+            await RemoveMirrorAsync(db, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
+    }
+
+    // Drop the DB content mirror when a file is intentionally unmanaged/deleted through the
+    // app. (An external deletion instead keeps both the record and the mirror — that's the
+    // whole point of the mirror.)
+    private static async Task RemoveMirrorAsync(AppDbContext db, int id)
+    {
+        var mirror = await db.FileContents.FindAsync(id);
+        if (mirror is not null) db.FileContents.Remove(mirror);
     }
 
     private static FileDto ToDto(ManagedFile f) =>

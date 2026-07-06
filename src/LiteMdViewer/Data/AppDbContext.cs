@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<ManagedFile> Files => Set<ManagedFile>();
+    public DbSet<FileContent> FileContents => Set<FileContent>();
     public DbSet<Graph> Graphs => Set<Graph>();
     public DbSet<GraphMember> GraphMembers => Set<GraphMember>();
     public DbSet<GraphEdge> GraphEdges => Set<GraphEdge>();
@@ -21,6 +22,7 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<ManagedFile>().HasIndex(f => f.FullPath).IsUnique();
+        b.Entity<FileContent>().HasKey(c => c.FileId);
         b.Entity<GraphMember>().HasIndex(m => m.FileId).IsUnique();
         b.Entity<GraphMember>().HasIndex(m => m.GraphId);
         b.Entity<GraphEdge>().HasIndex(e => new { e.FromId, e.ToId, e.Kind }).IsUnique();

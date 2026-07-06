@@ -14,6 +14,7 @@ const state = {
   active: null,        // active FileDto
   text: '',            // current file's markdown
   mode: 'view',        // 'view' | 'edit'
+  readOnly: false,     // true when showing a missing file's DB copy (locked, warning strip up)
 };
 
 // ---------- drawer (hover + click-to-pin) ----------
@@ -48,7 +49,15 @@ async function refreshTree() {
   // keep active file's status fresh
   if (state.active) {
     const updated = state.treeData.files.find((f) => f.id === state.active.id);
-    if (updated) { state.active = updated; updateToolbar(); }
+    if (updated) {
+      const wasMissing = !!state.active.missing;
+      state.active = updated;
+      updateToolbar();
+      // The file appeared or vanished on disk since the last poll → re-fetch so the content
+      // source (disk vs DB) and the read-only warning strip stay in sync (the strip is shown
+      // until the file is back, per requirement).
+      if (!!updated.missing !== wasMissing) { openFile(updated.id, { push: false }); return; }
+    }
   }
 
   const container = $('tree');
@@ -93,6 +102,7 @@ const treeHandlers = {
 function openDashboard() {
   closeRelations();
   state.active = null; state.text = '';
+  applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.add('dashboard');
   $('dashboardBtn').classList.add('active');
@@ -125,9 +135,10 @@ async function openFile(id, { push = true } = {}) {
     if (!state.active) $('welcome').classList.remove('hidden');
     toast(e.message, 'error'); await refreshTree(); return;
   }
-  state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, missing: false };
+  state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, missing: !content.onDisk };
   state.text = content.text;
   document.body.classList.add('file-open');
+  applyReadOnly(!content.onDisk);   // content came from the DB mirror → lock + show strip
   setMode('view');
   updateToolbar();
   renderTree($('tree'), state.treeData, treeHandlers, id);
@@ -156,8 +167,17 @@ function updateToolbar() {
   badge.classList.toggle('hidden', !missing);
 }
 
+// Lock/unlock editing for a missing file served from the DB. When locked, the yellow
+// warning strip is shown and the Edit toggle is disabled (view stays available).
+function applyReadOnly(on) {
+  state.readOnly = on;
+  $('dbWarning').classList.toggle('hidden', !on);
+  $('editModeBtn').disabled = on;
+}
+
 let previewTimer = null;
 function setMode(mode) {
+  if (mode === 'edit' && state.readOnly) return;   // can't edit the DB copy of a missing file
   state.mode = mode;
   const view = mode === 'view';
   $('viewModeBtn').classList.toggle('active', view);
@@ -181,6 +201,18 @@ async function save() {
     state.text = text;
     toast('Saved', 'ok');
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// Restore a missing file to disk from its DB copy, at its original path. Afterwards the
+// file exists again, so refreshTree's missing→present transition re-opens it editable and
+// drops the warning strip.
+async function recreateFile() {
+  if (!state.active) return;
+  try {
+    await api.recreateFile(state.active.id);
+  } catch (e) { toast(e.message, 'error'); return; }
+  toast('File recreated', 'ok');
+  await refreshTree();
 }
 
 // ---------- file details ----------
@@ -218,6 +250,7 @@ async function deleteDisk(file) {
 
 function clearActive() {
   state.active = null; state.text = '';
+  applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.remove('dashboard');
   $('dashboardBtn').classList.remove('active');
@@ -352,6 +385,7 @@ async function init() {
   $('viewModeBtn').onclick = () => setMode('view');
   $('editModeBtn').onclick = () => setMode('edit');
   $('saveBtn').onclick = save;
+  $('recreateBtn').onclick = recreateFile;
   $('detailsBtn').onclick = showDetails;
   $('relationsBtn').onclick = showRelations;
   $('editorText').addEventListener('input', () => {
