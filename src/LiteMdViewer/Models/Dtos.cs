@@ -26,7 +26,10 @@ public record AddFolderFilesResult(int Added, int Skipped, IEnumerable<FileDto> 
 public record BrowseEntry(string Name, string Path, bool IsDir, bool IsMarkdown, bool Accessible);
 public record BrowseResult(string? Path, string? Parent, bool IsRoot, IEnumerable<BrowseEntry> Entries);
 
-public record ContentDto(int Id, string Title, string FullPath, string Text);
+// OnDisk is false when Text was pulled from the DB mirror because the file is gone; the
+// viewer then shows the "from database" warning strip and locks editing (ReadOnly).
+public record ContentDto(
+    int Id, string Title, string FullPath, string Text, bool OnDisk, bool ReadOnly);
 
 public record NoteDto(
     int Id, string Kind, string FrontText, string BackText, double X, double Y, int Z);

@@ -24,6 +24,21 @@ public class ManagedFile
 }
 
 /// <summary>
+/// A database mirror of a managed file's on-disk content, kept in sync by
+/// <c>FileSyncService</c>. It deliberately outlives deletion of the file on disk so the
+/// last-known content can still be viewed (read-only) and the file recreated from it.
+/// One row per <see cref="ManagedFile"/> (<see cref="FileId"/> is both PK and the FK value).
+/// </summary>
+public class FileContent
+{
+    public int FileId { get; set; }                 // PK == ManagedFile.Id (1:1)
+    public string Content { get; set; } = "";       // last-synced file text
+    public string ContentHash { get; set; } = "";   // sha-256 hex of Content (skip no-op writes)
+    public DateTime SourceWriteUtc { get; set; }     // file mtime captured at sync time
+    public DateTime SyncedUtc { get; set; }          // when this mirror was last written
+}
+
+/// <summary>
 /// An explicit graph: a connected group of documents that owns the references/siblings
 /// between them, the companion documents associated with it, and the export attachments.
 /// A document belongs to at most one graph (via <see cref="GraphMember"/>).

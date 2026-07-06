@@ -34,6 +34,10 @@ Then open <http://127.0.0.1:5099>. (A `global.json` pins the build to the .NET 8
   highlighted code.
 - **Edit** in-app (split source/preview with live Mermaid preview) and **Save** back
   to disk.
+- **Never lose content** — a background service mirrors every managed file's content into
+  the database and keeps it in sync as files change. If a file is deleted from disk, opening
+  it still shows the last saved copy (read-only, behind a yellow warning strip); the
+  **Recreate file** button writes that copy back to the file's original path.
 - **Organize** managed files into **folders** (arbitrary depth) with **editable
   titles** (the on-disk filename is never changed). Drag a file onto a folder, or
   use the “⋯” menu / double-click to rename.
@@ -64,7 +68,8 @@ src/LiteMdViewer/
 | PATCH | `/api/files/{id}` | rename title / move folder / reorder |
 | DELETE | `/api/files/{id}` | remove from management (keeps the file) |
 | DELETE | `/api/files/{id}/disk` | delete the file from disk |
-| GET/PUT | `/api/files/{id}/content` | read / save markdown text |
+| GET/PUT | `/api/files/{id}/content` | read / save markdown text (read falls back to the DB copy when the file is gone) |
+| POST | `/api/files/{id}/recreate` | rewrite a deleted file to disk from its DB copy |
 | GET/POST/PATCH/DELETE | `/api/folders[...]` | folder CRUD |
 | GET/PUT | `/api/settings[...]` | theme & startup flags |
 

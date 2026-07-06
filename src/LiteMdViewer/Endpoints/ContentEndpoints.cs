@@ -27,13 +27,22 @@ public static class ContentEndpoints
         });
 
         // Raw markdown text for the viewer/editor. Tolerant read so it works even
-        // if another process holds the file open.
+        // if another process holds the file open. When the file is gone from disk we fall
+        // back to the DB mirror kept by FileSyncService (read-only) so the content is not lost.
         g.MapGet("/{id:int}/content", async (int id, AppDbContext db) =>
         {
             var f = await db.Files.FindAsync(id);
             if (f is null) return Results.NotFound();
+
             if (!File.Exists(f.FullPath))
-                return Results.NotFound(new { error = "File is missing on disk." });
+            {
+                var mirror = await db.FileContents.FindAsync(id);
+                if (mirror is null)
+                    return Results.NotFound(new { error = "File is missing on disk." });
+                // Serve the last-synced copy; the viewer shows the warning strip and locks editing.
+                return Results.Ok(new ContentDto(f.Id, f.Title, f.FullPath, mirror.Content,
+                                                 OnDisk: false, ReadOnly: true));
+            }
 
             string text;
             await using (var fs = new FileStream(f.FullPath, FileMode.Open, FileAccess.Read,
@@ -43,7 +52,8 @@ public static class ContentEndpoints
 
             f.LastOpenedUtc = DateTime.UtcNow;
             await db.SaveChangesAsync();
-            return Results.Ok(new ContentDto(f.Id, f.Title, f.FullPath, text));
+            return Results.Ok(new ContentDto(f.Id, f.Title, f.FullPath, text,
+                                             OnDisk: true, ReadOnly: false));
         });
 
         // Save edited content via an in-place truncate-write (FileMode.Create).
@@ -65,6 +75,41 @@ public static class ContentEndpoints
             f.LastWriteUtc = File.GetLastWriteTimeUtc(f.FullPath);
             await db.SaveChangesAsync();
             return Results.Ok(new { ok = true });
+        });
+
+        // Recreate a file that was deleted from disk, writing the DB mirror back to its
+        // original path (creating the parent folder if it too is gone). After this the file
+        // exists again and is editable, so the viewer drops the warning strip.
+        g.MapPost("/{id:int}/recreate", async (int id, AppDbContext db) =>
+        {
+            var f = await db.Files.FindAsync(id);
+            if (f is null) return Results.NotFound();
+            if (File.Exists(f.FullPath))
+                return Results.Conflict(new { error = "File already exists on disk." });
+
+            var mirror = await db.FileContents.FindAsync(id);
+            if (mirror is null)
+                return Results.Conflict(new { error = "No stored content to recreate from." });
+
+            try
+            {
+                var dir = Path.GetDirectoryName(f.FullPath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+                await using var fs = new FileStream(f.FullPath, FileMode.Create, FileAccess.Write, FileShare.Read);
+                await using var sw = new StreamWriter(fs);
+                await sw.WriteAsync(mirror.Content);
+            }
+            catch (Exception ex) { return Results.Problem("Could not recreate file: " + ex.Message); }
+
+            var mtime = File.GetLastWriteTimeUtc(f.FullPath);
+            f.LastWriteUtc = mtime;
+            // Keep the mirror's mtime marker in step so the sync sweep treats this as already-synced.
+            mirror.SourceWriteUtc = mtime;
+            mirror.SyncedUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new FileDto(f.Id, f.Title, f.FullPath, f.FolderId, f.SortOrder, false));
         });
     }
 }

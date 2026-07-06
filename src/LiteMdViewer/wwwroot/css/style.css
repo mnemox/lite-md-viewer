@@ -267,8 +267,29 @@ body.dashboard .topbar .bar-center { display: none !important; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg-btn { border: 0; background: transparent; color: var(--text); padding: 6px 12px; cursor: pointer; font-size: 14px; }
 .seg-btn.active { background: var(--accent); color: var(--accent-contrast); }
+.seg-btn:disabled { opacity: .4; cursor: not-allowed; }
 
 .content { position: relative; flex: 1 1 auto; overflow: auto; }
+
+/* Yellow strip shown when a file is gone from disk and its content is served from the
+   DB mirror. Sticks to the top of the scrolling content area so it stays visible. */
+.db-warning {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg));
+  border-block-end: 2px solid var(--warn);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.db-warning-icon { flex: 0 0 auto; color: var(--warn); }
+.db-warning-text { flex: 1 1 auto; }
+.db-warning .btn { flex: 0 0 auto; border-color: var(--warn); }
+.db-warning .btn:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
 
 /* loading spinner shown while a file's content is being fetched */
 .loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 5; }

@@ -37,6 +37,7 @@ export const api = {
   content: (id) => req('GET', `/api/files/${id}/content`),
   details: (id) => req('GET', `/api/files/${id}/details`),
   saveContent: (id, text) => req('PUT', `/api/files/${id}/content`, { text }),
+  recreateFile: (id) => req('POST', `/api/files/${id}/recreate`),
 
   // Relations (graph + companions)
   graph: (id) => req('GET', `/api/files/${id}/graph`),
