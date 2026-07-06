@@ -305,9 +305,15 @@ body.dashboard .topbar .bar-center { display: none !important; }
 /* ---------- dashboard: sticky-notes board ---------- */
 .dashboard { position: relative; height: 100%; overflow: hidden; }
 
-/* The board fills the content area and owns its own stacking context (z-index:0),
-   so a note's ever-growing bring-to-front z-index can never climb above the FAB. */
-.dash-board { position: absolute; inset: 0; overflow: hidden; z-index: 0; }
+/* The viewport clips the board and captures wheel-zoom + drag-pan gestures. It owns its
+   own stacking context (z-index:0), so a note's ever-growing bring-to-front z-index can
+   never climb above the toolbar/FAB (siblings at z-index:2). */
+.dash-viewport { position: absolute; inset: 0; overflow: hidden; z-index: 0; cursor: grab; touch-action: none; }
+.dash-viewport.grabbing { cursor: grabbing; }
+
+/* The board is the transformed stage: notes are positioned in its unscaled coordinate
+   space, and the pan/zoom controller applies translate()+scale() from the top-left. */
+.dash-board { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
 
 /* a fixed-size sticky card, freely positioned via inline inset-inline/block-start */
 .dash-note {
@@ -371,6 +377,15 @@ body.dashboard .topbar .bar-center { display: none !important; }
   background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
 }
 .dash-note:hover .dash-note-menu, .dash-note-menu:focus { opacity: 1; }
+
+/* zoom controls, bottom-left, above the board but below modals */
+.dash-toolbar {
+  position: absolute; inset-block-end: 20px; inset-inline-start: 20px; z-index: 2;
+  display: flex; gap: 4px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 2px; box-shadow: var(--shadow);
+}
+.dash-toolbar .icon-btn { width: 30px; height: 30px; font-size: 16px; }
 
 /* floating "+" action button, bottom-right, above the board but below modals */
 .dash-fab-wrap { position: absolute; inset-block-end: 20px; inset-inline-end: 20px; z-index: 2; }

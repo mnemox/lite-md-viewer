@@ -1,9 +1,12 @@
-// Reusable pan + zoom for an SVG "stage" inside a "viewport" element. Shared by the
-// Mermaid fullscreen overlay (graphview.js) and the relations graph (relations.js).
-// Wheel zooms toward the cursor; dragging pans. fit()/zoomIn()/zoomOut() drive toolbar
-// buttons and keys. wasDragged() lets click handlers ignore a click that was really a
-// pan. Pass { skipSelector } so presses on matching elements (e.g. graph nodes) don't
-// start a pan, keeping their click/dblclick handlers intact.
+// Reusable pan + zoom for a "stage" inside a "viewport" element. Shared by the Mermaid
+// fullscreen overlay (graphview.js), the relations graph (relations.js), and the
+// dashboard notes board (dashboard.js). Wheel zooms toward the cursor; dragging pans.
+// fit()/zoomIn()/zoomOut() drive toolbar buttons and keys. reset() returns the stage to
+// its untransformed 1:1 position (used where fit() has no SVG to measure). getScale()
+// reports the current scale so callers can convert screen deltas to stage coordinates.
+// wasDragged() lets click handlers ignore a click that was really a pan. Pass
+// { skipSelector } so presses on matching elements (e.g. graph nodes, sticky notes)
+// don't start a pan, keeping their click/dblclick/drag handlers intact.
 
 const MIN = 0.1;
 const MAX = 12;
@@ -51,6 +54,11 @@ export function createPanZoom(viewport, stage, { skipSelector = null, fitMargin 
     zoomAt(r.width / 2, r.height / 2, st.scale * factor);
   }
 
+  // Return the stage to its 1:1, unpanned position. Used by consumers whose content
+  // isn't an SVG with a measurable box (the dashboard board), where "fit" means "show
+  // the board exactly filling the viewport again".
+  function reset() { st.scale = 1; st.tx = 0; st.ty = 0; apply(); }
+
   function onWheel(e) {
     e.preventDefault();
     const r = viewport.getBoundingClientRect();
@@ -92,8 +100,10 @@ export function createPanZoom(viewport, stage, { skipSelector = null, fitMargin 
 
   return {
     fit,
+    reset,
     zoomIn: () => zoomCenter(1.2),
     zoomOut: () => zoomCenter(1 / 1.2),
+    getScale: () => st.scale,
     wasDragged: () => moved,
   };
 }
