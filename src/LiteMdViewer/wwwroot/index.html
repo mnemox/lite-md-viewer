@@ -88,9 +88,16 @@
         <button class="btn primary" id="welcomeAdd">+ Add a file</button>
       </section>
 
-      <!-- dashboard: a board of free-positioned sticky notes -->
+      <!-- dashboard: a board of free-positioned sticky notes (wheel-zoom + drag-pan) -->
       <section id="dashboard" class="dashboard hidden">
-        <div id="dashboardBoard" class="dash-board" aria-label="Notes board"></div>
+        <div id="dashboardViewport" class="dash-viewport">
+          <div id="dashboardBoard" class="dash-board" aria-label="Notes board"></div>
+        </div>
+        <div class="dash-toolbar">
+          <button type="button" class="icon-btn" data-act="out" title="Zoom out" aria-label="Zoom out">−</button>
+          <button type="button" class="icon-btn" data-act="fit" title="Reset zoom" aria-label="Reset zoom">⤢</button>
+          <button type="button" class="icon-btn" data-act="in"  title="Zoom in"  aria-label="Zoom in">+</button>
+        </div>
         <div class="dash-fab-wrap">
           <div id="dashFabMenu" class="dash-fab-menu hidden" role="menu" aria-label="Add a note">
             <button id="addNoteOpt" class="dash-fab-item" role="menuitem">

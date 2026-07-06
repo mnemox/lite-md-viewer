@@ -14,12 +14,14 @@ import { api } from './api.js';
 import { renderMarkdown } from './render.js';
 import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
+import { createPanZoom } from './panzoom.js';
 
 const $ = (id) => document.getElementById(id);
 const DRAG_THRESHOLD = 4;   // px moved before a press counts as a drag (vs a click)
 const NEW_OFFSET = 26;      // cascade step for stacking freshly-created notes
 
 let board = null;
+let pz = null;              // board pan/zoom controller (wheel-zoom + drag-pan)
 let wired = false;
 let topZ = 0;               // highest z-index in play (for bring-to-front)
 
@@ -30,6 +32,16 @@ export function initDashboard() {
   if (wired) return;
   wired = true;
   board = $('dashboardBoard');
+
+  // Wheel-zoom + drag-pan the whole board. skipSelector keeps a press on a note out of
+  // the pan gesture so the note's own drag/click/flip handlers still fire.
+  pz = createPanZoom($('dashboardViewport'), board, { skipSelector: '.dash-note' });
+  document.querySelector('.dash-toolbar').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'in') pz.zoomIn();
+    else if (act === 'out') pz.zoomOut();
+    else if (act === 'fit') pz.reset();
+  });
 
   const fab = $('dashFab');
   const menu = $('dashFabMenu');
@@ -145,8 +157,11 @@ function wireNote(el, menuBtn) {
 
   function onMove(e) {
     if (!dragging) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) moved = true;
+    // Screen movement is divided by the board's zoom so the note tracks the cursor
+    // 1:1 on screen while its stored x/y stay in unscaled board coordinates.
+    const scale = pz ? pz.getScale() : 1;
+    const dx = (e.clientX - sx) / scale, dy = (e.clientY - sy) / scale;
+    if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) > DRAG_THRESHOLD) moved = true;
     if (!moved) return;
     const maxX = Math.max(0, board.clientWidth - el.offsetWidth);
     const maxY = Math.max(0, board.clientHeight - el.offsetHeight);
