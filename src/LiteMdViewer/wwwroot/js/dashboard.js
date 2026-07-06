@@ -159,14 +159,19 @@ function wireNote(el, menuBtn) {
     if (!dragging) return;
     // Screen movement is divided by the board's zoom so the note tracks the cursor
     // 1:1 on screen while its stored x/y stay in unscaled board coordinates.
-    const scale = pz ? pz.getScale() : 1;
+    const { scale, tx, ty } = pz ? pz.getTransform() : { scale: 1, tx: 0, ty: 0 };
     const dx = (e.clientX - sx) / scale, dy = (e.clientY - sy) / scale;
     if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) > DRAG_THRESHOLD) moved = true;
     if (!moved) return;
-    const maxX = Math.max(0, board.clientWidth - el.offsetWidth);
-    const maxY = Math.max(0, board.clientHeight - el.offsetHeight);
-    el.style.insetInlineStart = clamp(ox + dx, 0, maxX) + 'px';
-    el.style.insetBlockStart = clamp(oy + dy, 0, maxY) + 'px';
+    // Clamp to the board region the viewport currently shows (in board coords), inverting
+    // the pan/zoom transform. This lets a note be dropped anywhere on screen — including
+    // the extra space revealed by zooming out — not just the frame that filled the
+    // viewport at 1:1. board.clientWidth/Height are the viewport size (the board is inset:0).
+    const minX = -tx / scale, minY = -ty / scale;
+    const maxX = (board.clientWidth - tx) / scale - el.offsetWidth;
+    const maxY = (board.clientHeight - ty) / scale - el.offsetHeight;
+    el.style.insetInlineStart = clamp(ox + dx, minX, maxX) + 'px';
+    el.style.insetBlockStart = clamp(oy + dy, minY, maxY) + 'px';
   }
 
   function onUp(e) {

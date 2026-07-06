@@ -2,9 +2,9 @@
 // fullscreen overlay (graphview.js), the relations graph (relations.js), and the
 // dashboard notes board (dashboard.js). Wheel zooms toward the cursor; dragging pans.
 // fit()/zoomIn()/zoomOut() drive toolbar buttons and keys. reset() returns the stage to
-// its untransformed 1:1 position (used where fit() has no SVG to measure). getScale()
-// reports the current scale so callers can convert screen deltas to stage coordinates.
-// wasDragged() lets click handlers ignore a click that was really a pan. Pass
+// its untransformed 1:1 position (used where fit() has no SVG to measure). getTransform()
+// reports the current { scale, tx, ty } so callers can map between screen and stage
+// coordinates. wasDragged() lets click handlers ignore a click that was really a pan. Pass
 // { skipSelector } so presses on matching elements (e.g. graph nodes, sticky notes)
 // don't start a pan, keeping their click/dblclick/drag handlers intact.
 
@@ -103,7 +103,7 @@ export function createPanZoom(viewport, stage, { skipSelector = null, fitMargin 
     reset,
     zoomIn: () => zoomCenter(1.2),
     zoomOut: () => zoomCenter(1 / 1.2),
-    getScale: () => st.scale,
+    getTransform: () => ({ scale: st.scale, tx: st.tx, ty: st.ty }),
     wasDragged: () => moved,
   };
 }
