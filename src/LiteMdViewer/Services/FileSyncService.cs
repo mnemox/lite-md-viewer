@@ -203,8 +203,7 @@ public class FileSyncService : BackgroundService
                                NotifyFilters.Size | NotifyFilters.CreationTime,
                 InternalBufferSize = 64 * 1024,
             };
-            w.Filters.Add("*.md");
-            w.Filters.Add("*.markdown");
+            foreach (var ext in SupportedFiles.DocumentExt) w.Filters.Add("*" + ext);
             w.Changed += (_, e) => MarkDirty(e.FullPath);
             w.Created += (_, e) => MarkDirty(e.FullPath);
             w.Renamed += (_, e) => MarkDirty(e.FullPath);

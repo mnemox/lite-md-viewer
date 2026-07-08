@@ -36,10 +36,8 @@ public static class FilesEndpoints
             try { full = Path.GetFullPath(req.Path); }
             catch { return Results.BadRequest(new { error = "Invalid path." }); }
 
-            var ext = Path.GetExtension(full);
-            if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
-                !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { error = "Only .md or .markdown files are supported." });
+            if (!SupportedFiles.IsSupported(full))
+                return Results.BadRequest(new { error = SupportedFiles.UnsupportedMessage });
 
             if (!File.Exists(full))
                 return Results.BadRequest(new { error = "File does not exist." });
@@ -84,12 +82,7 @@ public static class FilesEndpoints
             try
             {
                 mdFiles = Directory.EnumerateFiles(full)
-                    .Where(f =>
-                    {
-                        var ext = Path.GetExtension(f);
-                        return ext.Equals(".md", StringComparison.OrdinalIgnoreCase) ||
-                               ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase);
-                    })
+                    .Where(SupportedFiles.IsSupported)
                     .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
@@ -133,11 +126,9 @@ public static class FilesEndpoints
             if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 return Results.BadRequest(new { error = "Invalid file name." });
 
-            var ext = Path.GetExtension(name);
-            if (ext.Length == 0) { name += ".md"; ext = ".md"; }
-            if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
-                !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { error = "Only .md or .markdown files are supported." });
+            if (Path.GetExtension(name).Length == 0) name += SupportedFiles.DefaultExt;
+            if (!SupportedFiles.IsSupported(name))
+                return Results.BadRequest(new { error = SupportedFiles.UnsupportedMessage });
 
             string full;
             try { full = Path.GetFullPath(Path.Combine(req.Dir, name)); }
@@ -201,10 +192,8 @@ public static class FilesEndpoints
                 ? Path.GetFileName(f.FullPath)
                 : req.NewName.Trim();
 
-            var ext = Path.GetExtension(name);
-            if (!ext.Equals(".md", StringComparison.OrdinalIgnoreCase) &&
-                !ext.Equals(".markdown", StringComparison.OrdinalIgnoreCase))
-                return Results.BadRequest(new { error = "Only .md or .markdown files are supported." });
+            if (!SupportedFiles.IsSupported(name))
+                return Results.BadRequest(new { error = SupportedFiles.UnsupportedMessage });
 
             string target;
             try { target = Path.GetFullPath(Path.Combine(req.Dir, name)); }

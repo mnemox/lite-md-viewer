@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { toast, confirmDialog, promptDialog, detailsDialog } from './ui.js';
-import { renderMarkdown } from './render.js';
+import { renderDoc } from './render.js';
 import { applyTheme, currentTheme } from './theme.js';
 import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
@@ -12,7 +12,8 @@ const $ = (id) => document.getElementById(id);
 const state = {
   treeData: { folders: [], files: [] },
   active: null,        // active FileDto
-  text: '',            // current file's markdown
+  text: '',            // current file's raw text
+  docPath: '',         // active file's full path (selects the render pipeline: markdown vs xml)
   mode: 'view',        // 'view' | 'edit'
   readOnly: false,     // true when showing a missing file's DB copy (locked, warning strip up)
 };
@@ -137,6 +138,7 @@ async function openFile(id, { push = true } = {}) {
   }
   state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, missing: !content.onDisk };
   state.text = content.text;
+  state.docPath = content.fullPath;
   document.body.classList.add('file-open');
   applyReadOnly(!content.onDisk);   // content came from the DB mirror → lock + show strip
   setMode('view');
@@ -186,10 +188,10 @@ function setMode(mode) {
   $('viewer').classList.toggle('hidden', !view);
   $('editor').classList.toggle('hidden', view);
   if (view) {
-    renderMarkdown(state.text, $('viewer'));
+    renderDoc(state.docPath, state.text, $('viewer'));
   } else {
     $('editorText').value = state.text;
-    renderMarkdown(state.text, $('editorPreview'));
+    renderDoc(state.docPath, state.text, $('editorPreview'));
   }
 }
 
@@ -281,7 +283,7 @@ function startAddFolder() {
   openBrowse(async (path) => {
     try {
       const res = await api.addFolderFiles(path);
-      if (res.added === 0 && res.skipped === 0) toast('No .md files in that folder');
+      if (res.added === 0 && res.skipped === 0) toast('No Markdown or XML files in that folder');
       else if (res.added === 0) toast('All files there are already managed');
       else toast(`Added ${res.added} file${res.added === 1 ? '' : 's'}`
         + (res.skipped ? ` (${res.skipped} already managed)` : ''), 'ok');
@@ -335,8 +337,8 @@ async function toggleTheme() {
   api.setSetting('theme', next).catch(() => {});
   // re-render current doc so Mermaid picks up the new theme
   if (state.active) {
-    if (state.mode === 'view') renderMarkdown(state.text, $('viewer'));
-    else renderMarkdown($('editorText').value, $('editorPreview'));
+    if (state.mode === 'view') renderDoc(state.docPath, state.text, $('viewer'));
+    else renderDoc(state.docPath, $('editorText').value, $('editorPreview'));
   }
 }
 
@@ -390,7 +392,7 @@ async function init() {
   $('relationsBtn').onclick = showRelations;
   $('editorText').addEventListener('input', () => {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => renderMarkdown($('editorText').value, $('editorPreview')), 300);
+    previewTimer = setTimeout(() => renderDoc(state.docPath, $('editorText').value, $('editorPreview')), 300);
   });
 
   await refreshTree();

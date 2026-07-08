@@ -1,11 +1,12 @@
-// Server-backed "Add file" browser modal: navigate the real disk and pick a .md file.
+// Server-backed "Add file" browser modal: navigate the real disk and pick a supported
+// document file (.md / .markdown / .xml).
 import { api } from './api.js';
 import { toast } from './ui.js';
 
 let onPick = null;
 let last = null;       // last BrowseResult
 let mode = 'add';      // 'add' (pick an existing file) | 'create' (name a new .md here) | 'folder' (pick a folder)
-let kind = null;       // null/'md' → markdown files; 'json' → .json files; 'any' → every file
+let kind = null;       // null/'md' → document files (.md/.markdown/.xml); 'json' → .json files; 'any' → every file
 
 const $ = (id) => document.getElementById(id);
 const modal = () => $('browseModal');
@@ -30,15 +31,15 @@ export async function openBrowse(pickHandler, opts = {}) {
   $('browseFilter').value = '';
   $('browsePath').value = '';
   $('browseTitle').textContent = opts.title || (mode === 'create' ? 'Create a Markdown file'
-    : mode === 'folder' ? 'Add all .md files from a folder'
-    : 'Add a Markdown file');
+    : mode === 'folder' ? 'Add all Markdown & XML files from a folder'
+    : 'Add a file');
   $('browseAddPath').textContent = opts.addLabel || (mode === 'create' ? 'Create here'
     : mode === 'folder' ? 'Add this folder'
     : 'Add');
   $('browsePath').placeholder = opts.pathPlaceholder || (mode === 'create'
     ? 'New file name (e.g. notes.md) — created in the open folder'
     : mode === 'folder' ? '…or paste a full folder path'
-    : '…or paste a full path to a .md file');
+    : '…or paste a full path to a .md, .markdown, or .xml file');
   let start = '';
   try { start = (await api.settings()).lastBrowsedDir || ''; } catch { /* ignore */ }
   await load(start);
@@ -93,7 +94,7 @@ function renderEntries(entries) {
     li.textContent = filter ? 'No matches.' : (kind === 'json'
       ? 'No subfolders or .json files here.'
       : kind === 'any' ? 'No subfolders or files here.'
-      : 'No subfolders or .md files here.');
+      : 'No subfolders or supported files here.');
     list.appendChild(li);
   }
 }
