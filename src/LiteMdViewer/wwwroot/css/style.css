@@ -538,6 +538,10 @@ body.dashboard .topbar .bar-center { display: none !important; }
 .browse-list li .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
 .modal-foot { display: flex; gap: 8px; padding: 12px 16px; border-block-start: 1px solid var(--border); }
 
+/* the relations "Pick a document" picker reuses the drawer file tree inside a modal
+   card; min-height:0 lets it scroll once the card reaches its max-height */
+.pick-tree { min-height: 0; }
+
 /* file-details definition list */
 .details { margin: 0; padding: 16px 18px; display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; align-items: baseline; overflow: auto; }
 .details dt { color: var(--text-dim); font-size: 13px; }

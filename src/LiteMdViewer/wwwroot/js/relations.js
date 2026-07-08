@@ -6,7 +6,7 @@
 
 import { api } from './api.js';
 import { toast, confirmDialog } from './ui.js';
-import { popupMenu } from './tree.js';
+import { popupMenu, renderTree } from './tree.js';
 import { createPanZoom } from './panzoom.js';
 import { computeLayout } from './graphlayout.js';
 import { createGraph3d } from './graph3d.js';
@@ -130,7 +130,7 @@ function buildModal() {
 function onKey(e) {
   if (!overlay) return;
   const browse = document.getElementById('browseModal');
-  if (document.querySelector('.pick-list') || document.querySelector('.popup-menu')
+  if (document.querySelector('.pick-tree') || document.querySelector('.popup-menu')
     || document.querySelector('.rel-help-modal')
     || (browse && !browse.classList.contains('hidden'))) return; // nested UI owns keys
   if (e.key === 'Escape') { e.stopPropagation(); closeModal(); }
@@ -767,8 +767,9 @@ async function removeNode(fid) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-// Filterable picker over managed documents (excludes the base document). Resolves to
-// a file id, or null if cancelled.
+// Picker over managed documents (excludes the base document). Shows the same folder
+// tree as the side drawer — reusing renderTree in pick mode — so documents are found
+// in their folders exactly as in the menu. Resolves to a file id, or null if cancelled.
 function pickDocument(excludeId) {
   return new Promise((resolve) => {
     const ov = document.createElement('div');
@@ -777,44 +778,21 @@ function pickDocument(excludeId) {
       <div class="modal-card" style="width:min(460px,96vw)">
         <div class="modal-head"><strong>Pick a document</strong>
           <button class="icon-btn" data-act="cancel" aria-label="Close">✕</button></div>
-        <input class="input pick-filter" placeholder="Filter documents…" style="margin:10px 16px 0;width:auto" />
-        <ul class="browse-list pick-list"></ul>
+        <nav class="tree pick-tree" aria-label="Pick a document"></nav>
       </div>`;
-    const list = ov.querySelector('.pick-list');
-    const filter = ov.querySelector('.pick-filter');
-    let files = [];
+    const treeEl = ov.querySelector('.pick-tree');
 
-    const render = () => {
-      const q = filter.value.toLowerCase();
-      list.innerHTML = '';
-      const shown = files.filter((f) => !q || f.title.toLowerCase().includes(q));
-      if (!shown.length) {
-        const li = document.createElement('li'); li.className = 'disabled';
-        li.textContent = files.length ? 'No matches.' : 'No other documents.';
-        list.appendChild(li); return;
-      }
-      for (const f of shown) {
-        const li = document.createElement('li');
-        const icon = document.createElement('span'); icon.textContent = '📄';
-        const name = document.createElement('span'); name.className = 'name'; name.textContent = f.title; name.dir = 'auto';
-        if (f.missing) name.style.color = 'var(--danger)';
-        li.append(icon, name);
-        li.onclick = () => done(f.id);
-        list.appendChild(li);
-      }
-    };
     const done = (val) => { ov.remove(); document.removeEventListener('keydown', onk); resolve(val); };
     const onk = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(null); } };
     ov.addEventListener('click', (e) => {
       if (e.target === ov) return done(null);
       if (e.target.closest('[data-act="cancel"]')) done(null);
     });
-    filter.addEventListener('input', render);
     document.addEventListener('keydown', onk);
     document.body.appendChild(ov);
 
     api.tree()
-      .then((t) => { files = t.files.filter((f) => f.id !== excludeId); render(); filter.focus(); })
+      .then((t) => renderTree(treeEl, t, { pickFile: (id) => done(id) }, null, { pick: true, excludeFileId: excludeId }))
       .catch((e) => { toast(e.message, 'error'); done(null); });
   });
 }
