@@ -63,7 +63,14 @@ function editableLabel(el, current, commit) {
   el.onblur = () => finish(true);
 }
 
-export function renderTree(container, data, handlers, activeFileId) {
+// `options.pick` renders the tree as a document picker: the folder hierarchy is
+// identical to the drawer, but file rows select (handlers.pickFile(id)) instead of
+// opening, and the management affordances (drag, kebab menus, inline rename, folder
+// drop targets) are left off. `options.excludeFileId` hides one file from the picker.
+export function renderTree(container, data, handlers, activeFileId, options = {}) {
+  const pick = options.pick === true;
+  const excludeId = options.excludeFileId ?? null;
+
   const foldersByParent = new Map();
   const filesByFolder = new Map();
   for (const f of data.folders) {
@@ -71,15 +78,17 @@ export function renderTree(container, data, handlers, activeFileId) {
     (foldersByParent.get(k) || foldersByParent.set(k, []).get(k)).push(f);
   }
   for (const f of data.files) {
+    if (pick && f.id === excludeId) continue;   // never offer the document we're linking from
     const k = f.folderId ?? 0;
     (filesByFolder.get(k) || filesByFolder.set(k, []).get(k)).push(f);
   }
 
   container.innerHTML = '';
-  if (!data.folders.length && !data.files.length) {
+  const hasFiles = pick ? filesByFolder.size > 0 : data.files.length > 0;
+  if (!data.folders.length && !hasFiles) {
     const empty = document.createElement('div');
     empty.className = 'tree-empty';
-    empty.textContent = 'No files yet. Click “+ Add file” to manage one.';
+    empty.textContent = pick ? 'No other documents.' : 'No files yet. Click “+ Add file” to manage one.';
     container.appendChild(empty);
   }
 
@@ -96,16 +105,24 @@ export function renderTree(container, data, handlers, activeFileId) {
   function fileRow(file) {
     const row = document.createElement('div');
     row.className = 'row' + (file.id === activeFileId ? ' active' : '');
-    row.draggable = true;
-    row.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/file-id', String(file.id)));
 
     // Files have no caret (nothing to expand): the icon takes the caret column so a
     // file's icon lines up with the arrows of folders at the same level.
     const icon = document.createElement('span'); icon.className = 'icon file-icon'; icon.textContent = '📄';
     const label = document.createElement('span'); label.className = 'label'; label.textContent = file.title; label.dir = 'auto';
-    const kebab = document.createElement('span'); kebab.className = 'kebab'; kebab.textContent = '⋯';
 
     if (file.missing) { label.style.color = 'var(--danger)'; label.title = 'File is missing on disk'; }
+
+    // Picker mode: a plain selectable row — clicking it picks the document.
+    if (pick) {
+      row.append(icon, label);
+      row.addEventListener('click', () => handlers.pickFile(file.id));
+      return row;
+    }
+
+    row.draggable = true;
+    row.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/file-id', String(file.id)));
+    const kebab = document.createElement('span'); kebab.className = 'kebab'; kebab.textContent = '⋯';
 
     row.append(icon, label, kebab);
 
@@ -141,8 +158,6 @@ export function renderTree(container, data, handlers, activeFileId) {
     caret.className = 'caret'; caret.textContent = isOpen ? '▾' : '▸';
     const icon = document.createElement('span'); icon.className = 'icon'; icon.textContent = '📁';
     const label = document.createElement('span'); label.className = 'label'; label.textContent = folder.name; label.dir = 'auto';
-    const kebab = document.createElement('span'); kebab.className = 'kebab'; kebab.textContent = '⋯';
-    row.append(caret, icon, label, kebab);
 
     const children = document.createElement('div');
     children.className = 'children';
@@ -152,21 +167,30 @@ export function renderTree(container, data, handlers, activeFileId) {
       if (collapsed.has(folder.id)) { collapsed.delete(folder.id); children.style.display = ''; caret.textContent = '▾'; }
       else { collapsed.add(folder.id); children.style.display = 'none'; caret.textContent = '▸'; }
     };
-    row.addEventListener('click', (e) => { if (e.target === kebab || label.isContentEditable) return; toggle(); });
-    label.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      editableLabel(label, folder.name, (val) => handlers.renameFolder(folder.id, val));
-    });
-    kebab.addEventListener('click', (e) => {
-      e.stopPropagation();
-      popupMenu(kebab, [
-        { label: 'Rename', onClick: () => editableLabel(label, folder.name, (v) => handlers.renameFolder(folder.id, v)) },
-        { label: 'New subfolder', onClick: () => handlers.addFolder(folder.id) },
-        { label: 'Move to top level', onClick: () => handlers.moveFolder(folder.id, null) },
-        { label: 'Delete folder', danger: true, onClick: () => handlers.removeFolder(folder) },
-      ]);
-    });
-    dropToFolder(row, folder.id);
+
+    if (pick) {
+      // Picker mode: folders only expand/collapse — no kebab, rename, or drag-drop.
+      row.append(caret, icon, label);
+      row.addEventListener('click', toggle);
+    } else {
+      const kebab = document.createElement('span'); kebab.className = 'kebab'; kebab.textContent = '⋯';
+      row.append(caret, icon, label, kebab);
+      row.addEventListener('click', (e) => { if (e.target === kebab || label.isContentEditable) return; toggle(); });
+      label.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        editableLabel(label, folder.name, (val) => handlers.renameFolder(folder.id, val));
+      });
+      kebab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popupMenu(kebab, [
+          { label: 'Rename', onClick: () => editableLabel(label, folder.name, (v) => handlers.renameFolder(folder.id, v)) },
+          { label: 'New subfolder', onClick: () => handlers.addFolder(folder.id) },
+          { label: 'Move to top level', onClick: () => handlers.moveFolder(folder.id, null) },
+          { label: 'Delete folder', danger: true, onClick: () => handlers.removeFolder(folder) },
+        ]);
+      });
+      dropToFolder(row, folder.id);
+    }
 
     (foldersByParent.get(folder.id) || []).forEach((c) => children.appendChild(folderNode(c, depth + 1)));
     (filesByFolder.get(folder.id) || []).forEach((f) => children.appendChild(fileRow(f)));
@@ -177,6 +201,8 @@ export function renderTree(container, data, handlers, activeFileId) {
 
   (foldersByParent.get(0) || []).forEach((f) => container.appendChild(folderNode(f, 0)));
   (filesByFolder.get(0) || []).forEach((f) => container.appendChild(fileRow(f)));
+
+  if (pick) return;
 
   // Dropping on empty drawer space moves a file to the top level.
   container.ondragover = (e) => { e.preventDefault(); };
