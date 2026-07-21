@@ -6,6 +6,7 @@ import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
 import { openRelations, closeRelations } from './relations.js';
 import { initDashboard, renderDashboardNotes } from './dashboard.js';
+import { initDocNotes, loadDocNotes, clearDocNotes } from './docnotes.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -114,6 +115,7 @@ function openDashboard() {
   $('dashboard').classList.remove('hidden');
   renderTree($('tree'), state.treeData, treeHandlers, null);
   renderDashboardNotes();
+  clearDocNotes();
   if (urlFileId() != null) history.replaceState({}, '', location.pathname);
 }
 
@@ -144,6 +146,7 @@ async function openFile(id, { push = true } = {}) {
   setMode('view');
   updateToolbar();
   renderTree($('tree'), state.treeData, treeHandlers, id);
+  loadDocNotes(id);
   $('loading').classList.add('hidden');
   if (push) setFileUrl(id);
 }
@@ -253,6 +256,7 @@ async function deleteDisk(file) {
 function clearActive() {
   state.active = null; state.text = '';
   applyReadOnly(false);
+  clearDocNotes();
   document.body.classList.remove('file-open');
   document.body.classList.remove('dashboard');
   $('dashboardBtn').classList.remove('active');
@@ -349,7 +353,8 @@ async function init() {
   catch { applyTheme(currentTheme()); }
 
   initBrowse();
-  initDashboard();
+  initDashboard(openFile);
+  initDocNotes();
 
   // Any header button (except Relations itself, which opens it) closes the relations modal.
   document.querySelector('.topbar').addEventListener('click', (e) => {

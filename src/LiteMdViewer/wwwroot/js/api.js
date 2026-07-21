@@ -76,4 +76,14 @@ export const api = {
   createNote: (body) => req('POST', '/api/dashboard/notes', body),
   patchNote: (id, patch) => req('PATCH', `/api/dashboard/notes/${id}`, patch),
   deleteNote: (id) => req('DELETE', `/api/dashboard/notes/${id}`),
+
+  // Per-document notes (file page panel)
+  docNotes: (fileId) => req('GET', `/api/files/${fileId}/notes`),
+  createDocNote: (fileId, text) => req('POST', `/api/files/${fileId}/notes`, { text }),
+  patchDocNote: (fileId, noteId, patch) => req('PATCH', `/api/files/${fileId}/notes/${noteId}`, patch),
+  deleteDocNote: (fileId, noteId) => req('DELETE', `/api/files/${fileId}/notes/${noteId}`),
+
+  // Document-note clusters on the dashboard
+  documentNoteGroups: () => req('GET', '/api/dashboard/document-notes'),
+  patchDocNoteGroup: (fileId, patch) => req('PATCH', `/api/dashboard/document-notes/${fileId}`, patch),
 };

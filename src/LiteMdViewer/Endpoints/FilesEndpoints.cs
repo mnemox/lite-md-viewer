@@ -243,6 +243,7 @@ public static class FilesEndpoints
             if (f is null) return Results.NotFound();
             await graph.RemoveFileEverywhereAsync(id);
             await RemoveMirrorAsync(db, id);
+            await RemoveDocumentNotesAsync(db, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
@@ -260,6 +261,7 @@ public static class FilesEndpoints
             catch (Exception ex) { return Results.Problem("Could not delete file: " + ex.Message); }
             await graph.RemoveFileEverywhereAsync(id);
             await RemoveMirrorAsync(db, id);
+            await RemoveDocumentNotesAsync(db, id);
             db.Files.Remove(f);
             await db.SaveChangesAsync();
             return Results.NoContent();
@@ -273,6 +275,16 @@ public static class FilesEndpoints
     {
         var mirror = await db.FileContents.FindAsync(id);
         if (mirror is not null) db.FileContents.Remove(mirror);
+    }
+
+    // Drop a file's document notes and its dashboard cluster card when the file is unmanaged/
+    // deleted, so no orphaned notes or empty group linger on the dashboard.
+    private static async Task RemoveDocumentNotesAsync(AppDbContext db, int id)
+    {
+        var notes = await db.DocumentNotes.Where(n => n.FileId == id).ToListAsync();
+        if (notes.Count > 0) db.DocumentNotes.RemoveRange(notes);
+        var group = await db.DocumentNoteGroups.FirstOrDefaultAsync(g => g.FileId == id);
+        if (group is not null) db.DocumentNoteGroups.Remove(group);
     }
 
     private static FileDto ToDto(ManagedFile f) =>

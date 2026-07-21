@@ -18,10 +18,14 @@ public class AppDbContext : DbContext
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
+    public DbSet<DocumentNote> DocumentNotes => Set<DocumentNote>();
+    public DbSet<DocumentNoteGroup> DocumentNoteGroups => Set<DocumentNoteGroup>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<ManagedFile>().HasIndex(f => f.FullPath).IsUnique();
+        b.Entity<DocumentNote>().HasIndex(n => n.FileId);
+        b.Entity<DocumentNoteGroup>().HasIndex(g => g.FileId).IsUnique();
         b.Entity<FileContent>().HasKey(c => c.FileId);
         b.Entity<GraphMember>().HasIndex(m => m.FileId).IsUnique();
         b.Entity<GraphMember>().HasIndex(m => m.GraphId);

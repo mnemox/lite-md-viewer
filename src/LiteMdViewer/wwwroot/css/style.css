@@ -416,6 +416,144 @@ body.dashboard .topbar .bar-center { display: none !important; }
 .dfi-label { font-weight: 600; }
 .dfi-desc { font-size: 12px; color: var(--text-dim); }
 
+/* ---------- per-document notes (file page) ---------- */
+
+/* floating "+" button, bottom-right; only while a file is open, below the drawer/modals */
+.doc-fab-wrap { position: fixed; inset-block-end: 20px; inset-inline-end: 20px; z-index: 20; display: none; }
+body.file-open .doc-fab-wrap { display: block; }
+.doc-fab {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: none; background: var(--accent); color: var(--accent-contrast);
+  font-size: 30px; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center;
+}
+.doc-fab:hover { filter: brightness(1.06); }
+.doc-fab-menu {
+  position: absolute; inset-block-end: 66px; inset-inline-end: 0;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  padding: 6px; min-width: 236px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.doc-fab-item {
+  display: flex; align-items: center; gap: 10px;
+  text-align: start; background: transparent; border: 0; color: var(--text);
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.doc-fab-item:hover { background: var(--bg-elev-2); }
+
+/* collapsible notes panel, top-right; only while a file is open */
+.doc-notes-panel {
+  position: fixed; inset-block-start: calc(var(--topbar-h) + 12px); inset-inline-end: 12px;
+  width: 300px; min-width: 220px; max-width: min(80vw, 720px);
+  height: auto; max-height: calc(100vh - var(--topbar-h) - 24px);
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  z-index: 20; display: none; flex-direction: column; overflow: hidden;
+}
+body.file-open .doc-notes-panel { display: flex; }
+.doc-notes-panel.collapsed { height: auto; }
+
+/* drag handle on the panel's leading (left) edge to resize its width */
+.doc-notes-resize {
+  position: absolute; inset-block-start: 0; inset-inline-start: -3px; inset-block-end: 0;
+  width: 7px; cursor: ew-resize; z-index: 1; touch-action: none;
+}
+.doc-notes-resize::before {
+  content: ''; position: absolute; inset-block-start: 0; inset-inline-start: 3px; inset-block-end: 0;
+  width: 1px; background: var(--border);
+}
+.doc-notes-resize:hover::before, .doc-notes-resize.active::before { background: var(--accent); width: 2px; inset-inline-start: 2.5px; }
+.doc-notes-panel.collapsed .doc-notes-resize { display: none; }
+.doc-notes-head {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  border-block-end: 1px solid var(--border); flex: 0 0 auto;
+}
+.doc-notes-panel.collapsed .doc-notes-head { border-block-end: 0; }
+.doc-notes-toggle {
+  display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0;
+  background: transparent; border: 0; color: var(--text); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 2px 4px; border-radius: 6px; text-align: start;
+}
+.doc-notes-toggle:hover { background: var(--bg-elev-2); }
+.doc-notes-toggle .chev { transition: transform .15s ease; flex: 0 0 auto; }
+.doc-notes-panel.collapsed .doc-notes-toggle .chev { transform: rotate(-90deg); }
+.doc-notes-title { flex: 1 1 auto; }
+.doc-notes-count {
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px;
+  background: var(--bg-elev-2); color: var(--text-dim);
+  font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;
+}
+.doc-notes-list {
+  padding: 10px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto; min-height: 0;
+}
+.doc-notes-panel.collapsed .doc-notes-list { display: none; }
+.doc-notes-empty { margin: 4px 2px; color: var(--text-dim); font-size: 13px; }
+
+/* a note card in the panel: rendered markdown body + an actions row (or an inline editor).
+   flex: 0 0 auto keeps each card at its natural content height — without it, flex-shrink
+   (the default for flex items) squeezes cards to fit the list's available space instead of
+   letting the list scroll, and since the card clips overflow, that hides the body/buttons. */
+.doc-note { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow: hidden; }
+.doc-note-body { max-width: none; margin: 0; padding: 10px 12px; font-size: 14px; }
+.doc-note-body > :first-child { margin-block-start: 0; }
+.doc-note-body > :last-child { margin-block-end: 0; }
+.doc-note-actions {
+  display: flex; gap: 6px; justify-content: flex-end;
+  padding: 6px 8px; border-block-start: 1px solid var(--border);
+}
+.doc-note-act {
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+  font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+}
+.doc-note-act:hover { background: var(--bg-elev-2); }
+.doc-note-act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.doc-note-act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.doc-note.editing { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.doc-note.editing .doc-note-actions { border-block-start: 0; padding: 0; }
+.doc-note-input { width: 100%; min-height: 90px; resize: vertical; box-sizing: border-box; }
+
+/* a document's note cluster on the dashboard board: a titled, bordered stack, visually
+   distinct from the single sticky notes (accent border + accent header, auto height) */
+.dash-group {
+  position: absolute;
+  width: 260px; max-height: 340px;
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.dash-group.dragging { cursor: grabbing; }
+.dash-group-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex: 0 0 auto;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-block-end: 1px solid var(--border);
+}
+.dash-group-title {
+  font-weight: 700; font-size: 13px; color: var(--text); flex: 1 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dash-group-badge {
+  font-size: 11px; color: var(--danger); flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 6px; padding: 0 5px;
+}
+.dash-group-count {
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; flex: 0 0 auto;
+  background: var(--accent); color: var(--accent-contrast);
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-group-notes { padding: 8px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.dash-group-note {
+  max-width: none; margin: 0; padding: 8px 10px; font-size: 13px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.dash-group-note > :first-child { margin-block-start: 0; }
+.dash-group-note > :last-child { margin-block-end: 0; }
+
 /* note editor modal: source + live preview per side */
 .note-edit-body { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
 .note-edit-row { display: flex; flex-direction: column; gap: 6px; }
@@ -439,7 +577,7 @@ body.dashboard .topbar .bar-center { display: none !important; }
 .welcome h1 { margin: 0 0 8px; }
 .welcome p { color: var(--text-dim); margin: 0 0 18px; }
 
-.viewer { max-width: 920px; margin: 0 auto; padding: 28px 32px 80px; }
+.viewer { max-width: 920px; margin: 0 auto; }
 
 .editor { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
 .editor-text {

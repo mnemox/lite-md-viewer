@@ -159,3 +159,33 @@ public static class DashboardNoteKind
     public const string Note = "note";
     public const string Flip = "flip";
 }
+
+/// <summary>
+/// A markdown note attached to a specific managed document. Notes are shown in the file
+/// page's top-right panel and, on the dashboard, as a titled cluster (one per document).
+/// <see cref="SortOrder"/> orders the notes within their document group.
+/// </summary>
+public class DocumentNote
+{
+    public int Id { get; set; }
+    public int FileId { get; set; }                              // the ManagedFile this note belongs to
+    public string Text { get; set; } = "";                        // markdown body
+    public int SortOrder { get; set; }
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// The dashboard board placement of a document's note cluster. One row per document that
+/// has notes (created lazily when its first note is added). <see cref="X"/>/<see cref="Y"/>
+/// persist the group card's position so a dragged cluster stays put; <see cref="Z"/> is its
+/// stacking order among the board's cards.
+/// </summary>
+public class DocumentNoteGroup
+{
+    public int Id { get; set; }
+    public int FileId { get; set; }   // unique: at most one group card per document
+    public double X { get; set; }
+    public double Y { get; set; }
+    public int Z { get; set; }
+}

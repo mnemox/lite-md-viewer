@@ -36,6 +36,7 @@ using (var scope = app.Services.CreateScope())
     MigrateLegacyToGraph(db, app.Environment);   // one-time: legacy Relation/Attachment(FileId) → graph model
     EnsureAttachmentColumns(db);                 // add Kind/SourcePath to a pre-existing Attachments table
     EnsureDashboardTable(db);                    // add dashboard-notes table to a pre-existing DB (no-op on fresh)
+    EnsureDocumentNotesTables(db);               // add document-notes tables to a pre-existing DB (no-op on fresh)
     EnsureFileContentsTable(db);                 // add file-content mirror table to a pre-existing DB (no-op on fresh)
     // A background writer (FileSyncService) now competes with request handlers for the
     // single SQLite file. WAL lets readers and one writer proceed concurrently; the busy
@@ -56,6 +57,7 @@ app.MapSettings();
 app.MapRelations();
 app.MapAttachments();
 app.MapDashboard();
+app.MapDocumentNotes();
 
 app.MapFallbackToFile("index.html");
 
@@ -124,6 +126,30 @@ static void EnsureDashboardTable(AppDbContext db)
         ""Z"" INTEGER NOT NULL,
         ""CreatedUtc"" TEXT NOT NULL,
         ""UpdatedUtc"" TEXT NOT NULL);");
+}
+
+// Adds the document-notes tables to an already-created DB (EnsureCreated is a no-op on an
+// existing DB; on a fresh DB it already built these from the model, so this is a no-op).
+// Column names/types and index names match EF's conventions so fresh and migrated DBs are
+// identical.
+static void EnsureDocumentNotesTables(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""DocumentNotes"" (
+        ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_DocumentNotes"" PRIMARY KEY AUTOINCREMENT,
+        ""FileId"" INTEGER NOT NULL,
+        ""Text"" TEXT NOT NULL,
+        ""SortOrder"" INTEGER NOT NULL,
+        ""CreatedUtc"" TEXT NOT NULL,
+        ""UpdatedUtc"" TEXT NOT NULL);");
+    db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_DocumentNotes_FileId"" ON ""DocumentNotes"" (""FileId"");");
+
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""DocumentNoteGroups"" (
+        ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_DocumentNoteGroups"" PRIMARY KEY AUTOINCREMENT,
+        ""FileId"" INTEGER NOT NULL,
+        ""X"" REAL NOT NULL,
+        ""Y"" REAL NOT NULL,
+        ""Z"" INTEGER NOT NULL);");
+    db.Database.ExecuteSqlRaw(@"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_DocumentNoteGroups_FileId"" ON ""DocumentNoteGroups"" (""FileId"");");
 }
 
 // Adds the file-content mirror table to an already-created DB (EnsureCreated is a no-op on an

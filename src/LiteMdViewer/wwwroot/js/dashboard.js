@@ -24,18 +24,21 @@ let board = null;
 let pz = null;              // board pan/zoom controller (wheel-zoom + drag-pan)
 let wired = false;
 let topZ = 0;               // highest z-index in play (for bring-to-front)
+let openFile = null;        // app.js callback: open a document's file page from a group card
 
 // ---------- public API ----------
 
-// Wire the FAB and its popup once, at app init().
-export function initDashboard() {
+// Wire the FAB and its popup once, at app init(). `openFileFn` opens a document's file page
+// when a note-group card is clicked.
+export function initDashboard(openFileFn) {
   if (wired) return;
   wired = true;
+  openFile = openFileFn;
   board = $('dashboardBoard');
 
-  // Wheel-zoom + drag-pan the whole board. skipSelector keeps a press on a note out of
-  // the pan gesture so the note's own drag/click/flip handlers still fire.
-  pz = createPanZoom($('dashboardViewport'), board, { skipSelector: '.dash-note' });
+  // Wheel-zoom + drag-pan the whole board. skipSelector keeps a press on a note or a group
+  // card out of the pan gesture so their own drag/click/flip handlers still fire.
+  pz = createPanZoom($('dashboardViewport'), board, { skipSelector: '.dash-note, .dash-group' });
   document.querySelector('.dash-toolbar').addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'in') pz.zoomIn();
@@ -71,13 +74,18 @@ export function initDashboard() {
 // Fetch and (re)render the whole board. Called whenever the dashboard is shown.
 export async function renderDashboardNotes() {
   if (!board) board = $('dashboardBoard');
-  let notes;
-  try { notes = await api.dashboardNotes(); }
-  catch (e) { toast(e.message, 'error'); return; }
+  let notes = [], groups = [];
+  try {
+    [notes, groups] = await Promise.all([api.dashboardNotes(), api.documentNoteGroups()]);
+  } catch (e) { toast(e.message, 'error'); return; }
 
-  board.querySelectorAll('.dash-note').forEach((n) => n.remove());
-  topZ = notes.reduce((m, n) => Math.max(m, n.z || 0), 0);
+  board.querySelectorAll('.dash-note, .dash-group').forEach((n) => n.remove());
+  topZ = Math.max(
+    notes.reduce((m, n) => Math.max(m, n.z || 0), 0),
+    groups.reduce((m, g) => Math.max(m, g.z || 0), 0),
+  );
   for (const note of notes) board.appendChild(buildNote(note));
+  for (const group of groups) board.appendChild(buildGroup(group));
 }
 
 // ---------- note rendering ----------
@@ -138,11 +146,31 @@ async function renderFace(faceEl, text) {
 // ---------- interactions (drag vs click, flip, menu) ----------
 
 function wireNote(el, menuBtn) {
+  makeDraggable(el, {
+    skipSelector: '.dash-note-menu',   // the menu button is not a drag handle
+    onClick: (e) => onNoteClick(el, e),
+    onDrop: () => persistPosition(el),
+  });
+
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openNoteMenu(el, menuBtn);
+  });
+}
+
+// Generic pointer-drag for a board card, shared by single notes and document-note groups.
+// Skips presses on `skipSelector` and on links so their own handlers fire. Screen movement is
+// divided by the board's zoom so the card tracks the cursor 1:1 while its stored x/y stay in
+// unscaled board coordinates; the drop is clamped to the region the viewport currently shows
+// (inverting the pan/zoom transform), so a card can land anywhere on screen — including the
+// extra space revealed by zooming out. On release: a real move calls onDrop(); a press that
+// didn't move calls onClick(e).
+function makeDraggable(el, { skipSelector = null, onClick, onDrop } = {}) {
   let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false;
 
   el.addEventListener('pointerdown', (e) => {
     if (e.button != null && e.button !== 0) return;
-    if (e.target.closest('.dash-note-menu')) return;   // menu button is not a drag handle
+    if (skipSelector && e.target.closest(skipSelector)) return;
     if (e.target.closest('a[href]')) return;           // let links behave normally
     dragging = true; moved = false;
     sx = e.clientX; sy = e.clientY;
@@ -157,16 +185,10 @@ function wireNote(el, menuBtn) {
 
   function onMove(e) {
     if (!dragging) return;
-    // Screen movement is divided by the board's zoom so the note tracks the cursor
-    // 1:1 on screen while its stored x/y stay in unscaled board coordinates.
     const { scale, tx, ty } = pz ? pz.getTransform() : { scale: 1, tx: 0, ty: 0 };
     const dx = (e.clientX - sx) / scale, dy = (e.clientY - sy) / scale;
     if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) > DRAG_THRESHOLD) moved = true;
     if (!moved) return;
-    // Clamp to the board region the viewport currently shows (in board coords), inverting
-    // the pan/zoom transform. This lets a note be dropped anywhere on screen — including
-    // the extra space revealed by zooming out — not just the frame that filled the
-    // viewport at 1:1. board.clientWidth/Height are the viewport size (the board is inset:0).
     const minX = -tx / scale, minY = -ty / scale;
     const maxX = (board.clientWidth - tx) / scale - el.offsetWidth;
     const maxY = (board.clientHeight - ty) / scale - el.offsetHeight;
@@ -181,14 +203,8 @@ function wireNote(el, menuBtn) {
     el.removeEventListener('pointermove', onMove);
     el.removeEventListener('pointerup', onUp);
     el.removeEventListener('pointercancel', onUp);
-    if (moved) persistPosition(el);
-    else onNoteClick(el, e);
+    if (moved) onDrop?.(); else onClick?.(e);
   }
-
-  menuBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openNoteMenu(el, menuBtn);
-  });
 }
 
 function onNoteClick(el, e) {
@@ -231,6 +247,7 @@ function bringToFront(el) {
   const z = ++topZ;
   el.style.zIndex = String(z);
   if (el.__note) el.__note.z = z;
+  if (el.__group) el.__group.z = z;
 }
 
 async function persistPosition(el) {
@@ -238,6 +255,75 @@ async function persistPosition(el) {
   const x = el.offsetLeft, y = el.offsetTop, z = note.z;
   note.x = x; note.y = y;
   try { await api.patchNote(note.id, { x, y, z }); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+// ---------- document-note groups (one titled cluster per document) ----------
+
+// A group card gathers a document's notes into one bordered, titled container — visually
+// distinct from the single sticky notes. It's draggable/positioned like a note (persisted via
+// its file id). Clicking the header (or empty area) opens the document; clicking a note opens
+// it full-size. Editing happens on the file page, so the notes here are read-only.
+function buildGroup(group) {
+  const el = document.createElement('div');
+  el.className = 'dash-group';
+  el.dataset.fileId = group.fileId;
+  el.style.insetInlineStart = (group.x || 0) + 'px';
+  el.style.insetBlockStart = (group.y || 0) + 'px';
+  el.style.zIndex = String(group.z || 0);
+  el.__group = group;
+
+  const head = document.createElement('div');
+  head.className = 'dash-group-head';
+  const title = document.createElement('span');
+  title.className = 'dash-group-title';
+  title.dir = 'auto';
+  title.textContent = group.title || 'Untitled';
+  head.appendChild(title);
+  if (group.missing) {
+    const badge = document.createElement('span');
+    badge.className = 'dash-group-badge';
+    badge.textContent = 'missing';
+    head.appendChild(badge);
+  }
+  const count = document.createElement('span');
+  count.className = 'dash-group-count';
+  count.textContent = String(group.notes.length);
+  head.appendChild(count);
+  el.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'dash-group-notes';
+  for (const note of group.notes) {
+    const nel = document.createElement('article');
+    nel.className = 'viewer markdown-body dash-group-note';
+    nel.dir = 'auto';
+    nel.__text = note.text;
+    renderMarkdown(note.text || '', nel);
+    body.appendChild(nel);
+  }
+  el.appendChild(body);
+
+  wireGroup(el, group);
+  return el;
+}
+
+function wireGroup(el, group) {
+  makeDraggable(el, {
+    onClick: (e) => {
+      const noteEl = e.target.closest('.dash-group-note');
+      if (noteEl) openFullSize(group.title || 'Note', noteEl.__text);
+      else if (openFile) openFile(group.fileId);
+    },
+    onDrop: () => persistGroupPosition(el),
+  });
+}
+
+async function persistGroupPosition(el) {
+  const group = el.__group;
+  const x = el.offsetLeft, y = el.offsetTop, z = group.z;
+  group.x = x; group.y = y;
+  try { await api.patchDocNoteGroup(group.fileId, { x, y, z }); }
   catch (e) { toast(e.message, 'error'); }
 }
 
