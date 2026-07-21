@@ -14,6 +14,7 @@ public record CreateNoteRequest(string Kind, string FrontText, string BackText, 
 public record PatchNoteRequest(string? FrontText, string? BackText, double? X, double? Y, int? Z);
 public record CreateDocNoteRequest(string Text);
 public record PatchDocNoteRequest(string? Text, int? SortOrder);
+public record CreateNoteReferenceRequest(int StartOffset, int Length, string Text);
 public record PatchDocNoteGroupRequest(double? X, double? Y, int? Z);
 
 // ---- responses ----
@@ -37,14 +38,18 @@ public record ContentDto(
 public record NoteDto(
     int Id, string Kind, string FrontText, string BackText, double X, double Y, int Z);
 
+public record NoteReferenceDto(int Id, int DocumentNoteId, int StartOffset, int Length, string Text);
+
 // A markdown note attached to a document (shown in the file page's notes panel).
-public record DocNoteDto(int Id, int FileId, string Text, int SortOrder);
+public record DocNoteDto(int Id, int FileId, string Text, int SortOrder, IReadOnlyList<NoteReferenceDto> References);
 
 // A document's note cluster as placed on the dashboard board: the file's title/missing
 // state, the group card's position (X/Y/Z), and the notes it holds.
 public record DocNoteGroupDto(
     int FileId, string Title, bool Missing, double X, double Y, int Z,
     IEnumerable<DocNoteDto> Notes);
+
+public record NoteReferenceListDto(IEnumerable<NoteReferenceDto> References);
 
 public record FileDetailsDto(
     int Id, string Title, string FullPath,

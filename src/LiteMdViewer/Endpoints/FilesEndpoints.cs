@@ -282,6 +282,9 @@ public static class FilesEndpoints
     private static async Task RemoveDocumentNotesAsync(AppDbContext db, int id)
     {
         var notes = await db.DocumentNotes.Where(n => n.FileId == id).ToListAsync();
+        var noteIds = notes.Select(n => n.Id).ToList();
+        if (noteIds.Count > 0)
+            await db.DocumentNoteReferences.Where(r => noteIds.Contains(r.DocumentNoteId)).ExecuteDeleteAsync();
         if (notes.Count > 0) db.DocumentNotes.RemoveRange(notes);
         var group = await db.DocumentNoteGroups.FirstOrDefaultAsync(g => g.FileId == id);
         if (group is not null) db.DocumentNoteGroups.Remove(group);

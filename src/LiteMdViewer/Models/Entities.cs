@@ -173,6 +173,21 @@ public class DocumentNote
     public int SortOrder { get; set; }
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+    public ICollection<DocumentNoteReference> References { get; set; } = new List<DocumentNoteReference>();
+}
+
+/// <summary>
+/// A link between a document note and a selected passage in the document's rendered text.
+/// A single note can have many references (one-to-many from note to highlighted passages).
+/// </summary>
+public class DocumentNoteReference
+{
+    public int Id { get; set; }
+    public int DocumentNoteId { get; set; }
+    public int StartOffset { get; set; }     // character offset in the rendered document text
+    public int Length { get; set; }          // length of the highlighted passage
+    public string Text { get; set; } = "";    // the highlighted text (for relocation when content changes)
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>

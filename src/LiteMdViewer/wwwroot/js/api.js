@@ -83,6 +83,13 @@ export const api = {
   patchDocNote: (fileId, noteId, patch) => req('PATCH', `/api/files/${fileId}/notes/${noteId}`, patch),
   deleteDocNote: (fileId, noteId) => req('DELETE', `/api/files/${fileId}/notes/${noteId}`),
 
+  // Note ↔ highlighted text references
+  noteRefs: (fileId, noteId) => req('GET', `/api/files/${fileId}/notes/${noteId}/references`),
+  addNoteRef: (fileId, noteId, start, length, text) =>
+    req('POST', `/api/files/${fileId}/notes/${noteId}/references`, { startOffset: start, length, text }),
+  deleteNoteRef: (fileId, noteId, refId) =>
+    req('DELETE', `/api/files/${fileId}/notes/${noteId}/references/${refId}`),
+
   // Document-note clusters on the dashboard
   documentNoteGroups: () => req('GET', '/api/dashboard/document-notes'),
   patchDocNoteGroup: (fileId, patch) => req('PATCH', `/api/dashboard/document-notes/${fileId}`, patch),

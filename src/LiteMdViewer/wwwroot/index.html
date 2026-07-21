@@ -154,6 +154,24 @@
     </div>
   </main>
 
+  <!-- Note editor modal (add/edit) -->
+  <div id="noteEditorModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Note editor">
+    <div class="modal-card note-editor">
+      <div class="modal-head">
+        <strong id="noteEditorTitle">Add note</strong>
+        <button class="icon-btn" id="noteEditorClose" aria-label="Close">✕</button>
+      </div>
+      <div class="note-editor-body">
+        <textarea id="noteEditorText" class="note-editor-text" spellcheck="false" dir="auto" placeholder="Write markdown…" aria-label="Note text"></textarea>
+        <article id="noteEditorPreview" class="note-editor-preview viewer markdown-body" dir="auto"></article>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="noteEditorCancel">Cancel</button>
+        <button class="btn primary" id="noteEditorSave">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Add-file browser modal -->
   <div id="browseModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Add a file">
     <div class="modal-card">

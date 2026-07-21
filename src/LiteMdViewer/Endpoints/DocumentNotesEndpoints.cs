@@ -22,9 +22,9 @@ public static class DocumentNotesEndpoints
             var notes = await db.DocumentNotes
                 .Where(n => n.FileId == fileId)
                 .OrderBy(n => n.SortOrder).ThenBy(n => n.Id)
-                .Select(n => ToDto(n))
+                .Include(n => n.References)
                 .ToListAsync();
-            return Results.Ok(notes);
+            return Results.Ok(notes.Select(ToDto).ToList());
         });
 
         f.MapPost("", async (int fileId, CreateDocNoteRequest req, AppDbContext db) =>
@@ -67,7 +67,9 @@ public static class DocumentNotesEndpoints
         // Partial update: only supplied fields change.
         f.MapPatch("/{noteId:int}", async (int fileId, int noteId, PatchDocNoteRequest req, AppDbContext db) =>
         {
-            var n = await db.DocumentNotes.FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
+            var n = await db.DocumentNotes
+                .Include(x => x.References)
+                .FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
             if (n is null) return Results.NotFound();
 
             if (req.Text is not null) n.Text = req.Text;
@@ -80,7 +82,9 @@ public static class DocumentNotesEndpoints
 
         f.MapDelete("/{noteId:int}", async (int fileId, int noteId, AppDbContext db) =>
         {
-            var n = await db.DocumentNotes.FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
+            var n = await db.DocumentNotes
+                .Include(x => x.References)
+                .FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
             if (n is null) return Results.NotFound();
             db.DocumentNotes.Remove(n);
 
@@ -92,6 +96,53 @@ public static class DocumentNotesEndpoints
                 if (group is not null) db.DocumentNoteGroups.Remove(group);
             }
 
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        // ----- note ↔ highlighted text references -----
+        f.MapGet("/{noteId:int}/references", async (int fileId, int noteId, AppDbContext db) =>
+        {
+            if (!await db.DocumentNotes.AnyAsync(x => x.Id == noteId && x.FileId == fileId))
+                return Results.NotFound();
+            var refs = await db.DocumentNoteReferences
+                .Where(r => r.DocumentNoteId == noteId)
+                .OrderBy(r => r.Id)
+                .Select(r => ToRefDto(r))
+                .ToListAsync();
+            return Results.Ok(refs);
+        });
+
+        f.MapPost("/{noteId:int}/references", async (int fileId, int noteId, CreateNoteReferenceRequest req, AppDbContext db) =>
+        {
+            var note = await db.DocumentNotes.FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
+            if (note is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(req.Text))
+                return Results.BadRequest(new { error = "Highlighted text is required." });
+            if (req.Length <= 0)
+                return Results.BadRequest(new { error = "Length must be positive." });
+
+            var text = req.Text.Length > 500 ? req.Text[..500] : req.Text;
+            var r = new DocumentNoteReference
+            {
+                DocumentNoteId = noteId,
+                StartOffset = req.StartOffset,
+                Length = req.Length,
+                Text = text,
+                CreatedUtc = DateTime.UtcNow,
+            };
+            db.DocumentNoteReferences.Add(r);
+            await db.SaveChangesAsync();
+            return Results.Ok(ToRefDto(r));
+        });
+
+        f.MapDelete("/{noteId:int}/references/{refId:int}", async (int fileId, int noteId, int refId, AppDbContext db) =>
+        {
+            var note = await db.DocumentNotes.FirstOrDefaultAsync(x => x.Id == noteId && x.FileId == fileId);
+            if (note is null) return Results.NotFound();
+            var r = await db.DocumentNoteReferences.FirstOrDefaultAsync(x => x.Id == refId && x.DocumentNoteId == noteId);
+            if (r is null) return Results.NotFound();
+            db.DocumentNoteReferences.Remove(r);
             await db.SaveChangesAsync();
             return Results.NoContent();
         });
@@ -108,7 +159,9 @@ public static class DocumentNotesEndpoints
             var files = await db.Files.Where(x => fileIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id, x => x);
             var notes = await db.DocumentNotes.Where(n => fileIds.Contains(n.FileId))
-                .OrderBy(n => n.SortOrder).ThenBy(n => n.Id).ToListAsync();
+                .OrderBy(n => n.SortOrder).ThenBy(n => n.Id)
+                .Include(n => n.References)
+                .ToListAsync();
 
             var result = new List<DocNoteGroupDto>();
             foreach (var g in groups)
@@ -137,5 +190,8 @@ public static class DocumentNotesEndpoints
         });
     }
 
-    private static DocNoteDto ToDto(DocumentNote n) => new(n.Id, n.FileId, n.Text, n.SortOrder);
+    private static DocNoteDto ToDto(DocumentNote n) => new(n.Id, n.FileId, n.Text, n.SortOrder,
+        n.References.Select(ToRefDto).OrderBy(r => r.Id).ToList());
+
+    private static NoteReferenceDto ToRefDto(DocumentNoteReference r) => new(r.Id, r.DocumentNoteId, r.StartOffset, r.Length, r.Text);
 }

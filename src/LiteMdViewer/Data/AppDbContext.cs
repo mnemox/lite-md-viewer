@@ -19,12 +19,17 @@ public class AppDbContext : DbContext
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<DashboardNote> DashboardNotes => Set<DashboardNote>();
     public DbSet<DocumentNote> DocumentNotes => Set<DocumentNote>();
+    public DbSet<DocumentNoteReference> DocumentNoteReferences => Set<DocumentNoteReference>();
     public DbSet<DocumentNoteGroup> DocumentNoteGroups => Set<DocumentNoteGroup>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.Entity<ManagedFile>().HasIndex(f => f.FullPath).IsUnique();
         b.Entity<DocumentNote>().HasIndex(n => n.FileId);
+        b.Entity<DocumentNoteReference>().HasIndex(r => r.DocumentNoteId);
+        b.Entity<DocumentNoteReference>().Property(r => r.Text).HasMaxLength(500);
+        b.Entity<DocumentNoteReference>().HasIndex(r => new { r.DocumentNoteId, r.StartOffset, r.Length, r.Text }).IsUnique();
+        b.Entity<DocumentNoteReference>().HasOne<DocumentNote>().WithMany(n => n.References).HasForeignKey(r => r.DocumentNoteId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<DocumentNoteGroup>().HasIndex(g => g.FileId).IsUnique();
         b.Entity<FileContent>().HasKey(c => c.FileId);
         b.Entity<GraphMember>().HasIndex(m => m.FileId).IsUnique();

@@ -37,6 +37,7 @@ using (var scope = app.Services.CreateScope())
     EnsureAttachmentColumns(db);                 // add Kind/SourcePath to a pre-existing Attachments table
     EnsureDashboardTable(db);                    // add dashboard-notes table to a pre-existing DB (no-op on fresh)
     EnsureDocumentNotesTables(db);               // add document-notes tables to a pre-existing DB (no-op on fresh)
+    EnsureDocumentNoteReferencesTable(db);         // add note↔highlight links to a pre-existing DB (no-op on fresh)
     EnsureFileContentsTable(db);                 // add file-content mirror table to a pre-existing DB (no-op on fresh)
     // A background writer (FileSyncService) now competes with request handlers for the
     // single SQLite file. WAL lets readers and one writer proceed concurrently; the busy
@@ -150,6 +151,22 @@ static void EnsureDocumentNotesTables(AppDbContext db)
         ""Y"" REAL NOT NULL,
         ""Z"" INTEGER NOT NULL);");
     db.Database.ExecuteSqlRaw(@"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_DocumentNoteGroups_FileId"" ON ""DocumentNoteGroups"" (""FileId"");");
+}
+
+// Adds the note↔highlight link table to an already-created DB (EnsureCreated is a no-op on an
+// existing DB; on a fresh DB it already built this from the model, so this is a no-op).
+// Column names/types and index names match EF's conventions so fresh and migrated DBs are identical.
+static void EnsureDocumentNoteReferencesTable(AppDbContext db)
+{
+    db.Database.ExecuteSqlRaw(@"CREATE TABLE IF NOT EXISTS ""DocumentNoteReferences"" (
+        ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_DocumentNoteReferences"" PRIMARY KEY AUTOINCREMENT,
+        ""DocumentNoteId"" INTEGER NOT NULL REFERENCES ""DocumentNotes""(""Id"") ON DELETE CASCADE,
+        ""StartOffset"" INTEGER NOT NULL,
+        ""Length"" INTEGER NOT NULL,
+        ""Text"" TEXT NOT NULL,
+        ""CreatedUtc"" TEXT NOT NULL);");
+    db.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_DocumentNoteReferences_DocumentNoteId"" ON ""DocumentNoteReferences"" (""DocumentNoteId"");");
+    db.Database.ExecuteSqlRaw(@"CREATE UNIQUE INDEX IF NOT EXISTS ""IX_DocumentNoteReferences_Note_Start_Length_Text"" ON ""DocumentNoteReferences"" (""DocumentNoteId"", ""StartOffset"", ""Length"", ""Text"");");
 }
 
 // Adds the file-content mirror table to an already-created DB (EnsureCreated is a no-op on an

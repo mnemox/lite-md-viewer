@@ -511,9 +511,9 @@ body.file-open .doc-notes-panel { display: flex; }
 .doc-note-act:hover { background: var(--bg-elev-2); }
 .doc-note-act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 .doc-note-act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
-.doc-note.editing { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
-.doc-note.editing .doc-note-actions { border-block-start: 0; padding: 0; }
-.doc-note-input { width: 100%; min-height: 90px; resize: vertical; box-sizing: border-box; }
+.doc-note-act.rel { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.doc-note-act.rel:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.note-ref-count { font-size: 10px; font-weight: 700; color: var(--accent-contrast); background: var(--accent); min-width: 14px; height: 14px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
 
 /* a document's note cluster on the dashboard board: a titled, bordered stack, visually
    distinct from the single sticky notes (accent border + accent header, auto height) */
@@ -862,3 +862,34 @@ body.file-open .doc-notes-panel { display: flex; }
   box-shadow: var(--shadow);
 }
 .gv-toolbar .icon-btn { width: 34px; height: 34px; }
+
+/* ---------- note editor modal (add/edit) ---------- */
+.modal-card.note-editor { width: min(900px, 96vw); max-height: 86vh; }
+.note-editor-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; height: 60vh;
+}
+.note-editor-text {
+  flex: 1 1 50%; min-width: 0; min-height: 0;
+  padding: 12px; font: inherit; font-size: 14px; line-height: 1.5;
+  border: none; border-inline-end: 1px solid var(--border);
+  background: var(--bg); color: var(--text); resize: none; outline: none;
+}
+.note-editor-text:focus { background: var(--bg-elev); }
+.note-editor-preview {
+  flex: 1 1 50%; min-width: 0; min-height: 0;
+  padding: 12px; overflow: auto;
+  background: var(--bg-elev); color: var(--text);
+}
+
+/* ---------- note ↔ highlight arrows ---------- */
+.note-refs-overlay {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 55;
+}
+.note-refs-overlay line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  marker-end: url(#note-ref-arrowhead);
+}
