@@ -1,0 +1,1111 @@
+:root {
+  --bg: #ffffff;
+  --bg-elev: #f6f7f9;
+  --bg-elev-2: #eceef1;
+  --text: #1c1e21;
+  --text-dim: #6b7280;
+  --border: #e3e6ea;
+  --accent: #2f6fed;
+  --accent-contrast: #ffffff;
+  --danger: #d64541;
+  --ok: #2e9e5b;
+  --warn: #c9871f;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .14);
+  --radius: 10px;
+  --drawer-w: 310px;
+  --topbar-h: 44px;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #15171c;
+  --bg-elev: #1d2027;
+  --bg-elev-2: #272b34;
+  --text: #e6e8ec;
+  --text-dim: #9aa3b2;
+  --border: #2d323c;
+  --accent: #5b8cff;
+  --accent-contrast: #0b1220;
+  --danger: #e3706c;
+  --ok: #45c07a;
+  --warn: #e0a23a;
+  --shadow: 0 8px 30px rgba(0, 0, 0, .55);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; overflow: hidden; } /* app shell never scrolls; only .content does */
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hidden { display: none !important; }
+.spacer { flex: 1 1 auto; }
+.grow { flex: 1 1 auto; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--topbar-h);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 8px;
+  background: var(--bg-elev);
+  border-block-end: 1px solid var(--border);
+  z-index: 40;
+}
+/* pin each group to its column so a hidden center group doesn't reflow the sides */
+.bar-left  { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; } /* min-width:0 → title can truncate */
+.bar-right { grid-column: 3; display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.topbar .bar-center { grid-column: 2; justify-self: center; align-items: center; gap: 8px; }
+.brand { font-weight: 650; letter-spacing: .2px; flex: 0 0 auto; }
+
+/* shrink controls to fit the slimmer 44px bar */
+.topbar .icon-btn { width: 32px; height: 32px; font-size: 16px; }
+.topbar .seg-btn  { padding: 4px 12px; }
+.topbar .btn      { padding: 5px 11px; }
+
+/* file controls are hidden until a file is open */
+#fileTitle, #fileStatus, .topbar .bar-center { display: none; }
+body.file-open #fileTitle   { display: inline; }
+body.file-open #fileStatus  { display: inline; }
+body.file-open .topbar .bar-center { display: inline-flex; }
+body:not(.ai-enabled) #askBtn { display: none; }
+body:not(.file-open) #saveBtn { display: none; } /* Save is also driven by setMode's .hidden */
+/* the dashboard is not a file: keep the center View/Edit/Details/Relations group hidden */
+body.dashboard .topbar .bar-center { display: none !important; }
+
+/* narrow screens: drop title/badge so the centered View/Edit + actions still fit
+   (the file name stays visible in the drawer tree) */
+@media (max-width: 760px) {
+  #fileTitle, #fileStatus { display: none !important; }
+}
+
+/* ---------- global search ---------- */
+.search-wrap { position: relative; display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; }
+/* the input and its two overlaid affordances; the wrap also anchors the results panel */
+.search-field { position: relative; display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+
+/* scope switch, shown only while a document is open */
+.search-scope {
+  display: flex; flex: 0 0 auto;
+  padding: 2px; gap: 2px;
+  background: var(--bg-elev-2); border-radius: 8px;
+}
+.search-scope-pill {
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-dim);
+  font: inherit; font-size: 12px; font-weight: 600;
+  padding: 3px 9px; cursor: pointer; white-space: nowrap;
+}
+.search-scope-pill:hover { color: var(--text); }
+.search-scope-pill.active { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
+
+.search-input {
+  width: clamp(130px, 24vw, 250px);
+  /* leave room for the leading magnifier and the trailing clear button */
+  padding: 5px 26px 5px 28px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+  font: inherit; font-size: 13px; outline: none;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--text-dim); }
+.search-icon {
+  position: absolute; inset-inline-start: 8px;
+  color: var(--text-dim); pointer-events: none;
+}
+.search-clear {
+  position: absolute; inset-inline-end: 4px;
+  width: 20px; height: 20px; padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: transparent;
+  color: var(--text-dim); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.search-clear:hover { background: var(--bg-elev-2); color: var(--text); }
+
+/* results dropdown: above the drawer (45), below modals (60) */
+.search-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-end: 0;
+  width: min(460px, calc(100vw - 24px));
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 50;
+  animation: add-menu-in .12s ease;
+}
+.search-hit {
+  display: flex; flex-direction: column; gap: 3px;
+  width: 100%; border: 0; background: transparent; color: var(--text);
+  padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; font: inherit; text-align: start;
+}
+.search-hit:hover, .search-hit.active { background: var(--bg-elev-2); }
+.search-hit-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.search-hit-title {
+  font-size: 13px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* an in-document hit is named by its heading trail: ancestors dimmed and lighter, so the
+   eye lands on the section itself rather than on the path to it */
+.search-hit-path { font-weight: 500; }
+.search-hit-crumb { color: var(--text-dim); font-weight: 400; }
+.search-hit-leaf { font-weight: 600; }
+.search-hit-sep { color: var(--text-dim); margin: 0 5px; font-weight: 400; }
+
+/* how many passages of this document matched (outlined, so it stays legible on hover,
+   where the row background is itself --bg-elev-2) */
+.search-hit-count {
+  flex: 0 0 auto;
+  font-size: 11px; color: var(--text-dim);
+  padding: 0 6px; border-radius: 9px;
+  border: 1px solid var(--border);
+}
+/* clamp the snippet to two lines so every hit stays the same height */
+.search-hit-snippet {
+  font-size: 12px; color: var(--text-dim); line-height: 1.45;
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden;
+}
+.search-note { padding: 10px 12px; font-size: 13px; color: var(--text-dim); }
+
+/* brief tint on the passage a search hit landed on */
+@keyframes search-flash {
+  from { background: color-mix(in srgb, var(--accent) 32%, transparent); }
+  to   { background: transparent; }
+}
+.search-flash { animation: search-flash 2.4s ease-out; border-radius: 4px; }
+
+/* very narrow: the drawer tree is the better way to navigate */
+@media (max-width: 520px) {
+  .search-wrap { display: none; }
+}
+
+.icon-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: var(--bg-elev-2); }
+.icon-btn svg { display: block; }
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn:hover { background: var(--bg-elev-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn.danger:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+
+/* ---------- drawer ---------- */
+.edge-zone {
+  position: fixed;
+  inset-block: var(--topbar-h) 0;
+  inset-inline-start: 0;
+  width: 14px;
+  z-index: 30;
+}
+.drawer {
+  position: fixed;
+  inset-block: var(--topbar-h) 0;
+  inset-inline-start: 0;
+  width: var(--drawer-w);
+  background: var(--bg-elev);
+  border-inline-end: 1px solid var(--border);
+  transform: translateX(-104%);
+  transition: transform .18s ease;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+}
+[dir="rtl"] .drawer { transform: translateX(104%); }
+.drawer.open { transform: translateX(0); }
+/* top part: dashboard navigation, separated from the file list below */
+.drawer-top { flex: 0 0 auto; padding: 8px; border-block-end: 1px solid var(--border); }
+.drawer-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; border: 1px solid transparent; background: transparent; color: var(--text);
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; text-align: start;
+}
+.drawer-nav-item:hover { background: var(--bg-elev-2); }
+.drawer-nav-item.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.drawer-nav-item svg { flex: 0 0 auto; }
+
+.drawer-head { display: flex; align-items: center; gap: 5px; padding: 10px; border-block-end: 1px solid var(--border); }
+/* lightweight buttons; the three actions share the row, close pinned at the end */
+.drawer-head .btn {
+  flex: 1 1 0; min-width: 0;
+  padding: 4px 6px; font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+}
+.drawer-head .icon-btn { flex: 0 0 auto; width: 28px; height: 28px; font-size: 14px; }
+
+/* "Add ▾" button + dropdown (add file / add folder) */
+.add-menu-wrap { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+.add-menu-wrap .btn {
+  width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+}
+.add-menu-wrap .chev { flex: 0 0 auto; transition: transform .15s ease; }
+.add-menu-wrap.open .chev { transform: rotate(180deg); }
+.add-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-start: 0;
+  min-width: 210px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 60;
+  animation: add-menu-in .12s ease;
+}
+@keyframes add-menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.add-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; border: 0; background: transparent; color: var(--text);
+  padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; font: inherit; text-align: start;
+}
+.add-menu-item:hover { background: var(--bg-elev-2); }
+.ami-icon { font-size: 16px; }
+.ami-text { display: flex; flex-direction: column; min-width: 0; }
+.ami-label { font-size: 13px; font-weight: 600; }
+.ami-desc { font-size: 11.5px; color: var(--text-dim); }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .32);
+  z-index: 44;
+}
+
+/* push content when the drawer is pinned on wide screens */
+@media (min-width: 900px) {
+  body.pinned .main { margin-inline-start: var(--drawer-w); }
+  body.pinned .scrim { display: none; }
+  body.pinned .ai-panel { inset-inline-start: calc(var(--drawer-w) + 12px); }
+}
+
+/* ---------- tree ---------- */
+.tree { flex: 1 1 auto; overflow: auto; padding: 8px 6px; }
+.tree-node { user-select: none; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.row:hover { background: var(--bg-elev-2); }
+.row.active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.row.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.row .caret { width: 14px; text-align: center; color: var(--text-dim); flex: 0 0 auto; }
+.row .label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.row .label[contenteditable="true"] {
+  background: var(--bg);
+  outline: 1px solid var(--accent);
+  border-radius: 4px;
+  padding-inline: 4px;
+}
+.row .icon { flex: 0 0 auto; font-size: 14px; }
+/* a file has no caret, so its icon stands in the caret column (same 14px, centered)
+   to line up with the arrows of folders at the same level */
+.row .file-icon { width: 14px; text-align: center; }
+.row .kebab { flex: 0 0 auto; opacity: 0; font-size: 16px; color: var(--text-dim); padding-inline: 2px; }
+.row:hover .kebab { opacity: 1; }
+.children { margin-inline-start: 14px; border-inline-start: 1px solid var(--border); }
+.badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.badge.missing { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.tree-empty { color: var(--text-dim); padding: 14px 10px; font-size: 13px; }
+
+/* ---------- main ---------- */
+.main {
+  padding-block-start: var(--topbar-h);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  transition: margin .18s ease;
+}
+.file-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 28vw; white-space: nowrap; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg-btn { border: 0; background: transparent; color: var(--text); padding: 6px 12px; cursor: pointer; font-size: 14px; }
+.seg-btn.active { background: var(--accent); color: var(--accent-contrast); }
+.seg-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.content { position: relative; flex: 1 1 auto; overflow: auto; }
+
+/* Yellow strip shown when a file is gone from disk and its content is served from the
+   DB mirror. Sticks to the top of the scrolling content area so it stays visible. */
+.db-warning {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg));
+  border-block-end: 2px solid var(--warn);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.db-warning-icon { flex: 0 0 auto; color: var(--warn); }
+.db-warning-text { flex: 1 1 auto; }
+.db-warning .btn { flex: 0 0 auto; border-color: var(--warn); }
+.db-warning .btn:hover { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+
+/* loading spinner shown while a file's content is being fetched */
+.loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 5; }
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- dashboard: sticky-notes board ---------- */
+.dashboard { position: relative; height: 100%; overflow: hidden; }
+
+/* The viewport clips the board and captures wheel-zoom + drag-pan gestures. It owns its
+   own stacking context (z-index:0), so a note's ever-growing bring-to-front z-index can
+   never climb above the toolbar/FAB (siblings at z-index:2). */
+.dash-viewport { position: absolute; inset: 0; overflow: hidden; z-index: 0; cursor: grab; touch-action: none; }
+.dash-viewport.grabbing { cursor: grabbing; }
+
+/* The board is the transformed stage: notes are positioned in its unscaled coordinate
+   space, and the pan/zoom controller applies translate()+scale() from the top-left. */
+.dash-board { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+
+/* a fixed-size sticky card, freely positioned via inline inset-inline/block-start */
+.dash-note {
+  position: absolute;
+  width: 240px;
+  height: 210px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dash-note.dragging { cursor: grabbing; }
+.dash-note.flip { perspective: 1000px; }
+
+/* faces fill the card; the flip card's two faces stack inside .dash-note-inner */
+.dash-note-inner {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transition: transform .5s;
+}
+.dash-note.flipped .dash-note-inner { transform: rotateY(180deg); }
+
+.dash-note-face {
+  position: absolute; inset: 0;
+  padding: 14px 16px;
+  overflow: hidden;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.dash-note-back { transform: rotateY(180deg); }
+
+/* fade the text out at the bottom when a face's content overflows its card */
+.dash-note-face.overflowing::after {
+  content: "";
+  position: absolute; inset-inline: 0; inset-block-end: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, var(--bg-elev));
+  pointer-events: none;
+}
+
+/* a persistent hint that a flip note is two-sided */
+.dash-note.flip::after {
+  content: "⟲";
+  position: absolute; inset-block-end: 6px; inset-inline-end: 8px;
+  font-size: 13px; color: var(--text-dim);
+  pointer-events: none; z-index: 2;
+}
+
+.dash-note .dash-note-content > :first-child { margin-block-start: 0; }
+
+/* per-note action menu (revealed on hover) */
+.dash-note-menu {
+  position: absolute; inset-block-start: 4px; inset-inline-end: 4px;
+  width: 26px; height: 26px; font-size: 16px;
+  z-index: 3; opacity: 0;
+  background: color-mix(in srgb, var(--bg-elev) 80%, transparent);
+}
+.dash-note:hover .dash-note-menu, .dash-note-menu:focus { opacity: 1; }
+
+/* zoom controls, bottom-left, above the board but below modals */
+.dash-toolbar {
+  position: absolute; inset-block-end: 20px; inset-inline-start: 20px; z-index: 2;
+  display: flex; gap: 4px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 2px; box-shadow: var(--shadow);
+}
+.dash-toolbar .icon-btn { width: 30px; height: 30px; font-size: 16px; }
+
+/* floating "+" action button, bottom-right, above the board but below modals */
+.dash-fab-wrap { position: absolute; inset-block-end: 20px; inset-inline-end: 20px; z-index: 2; }
+.dash-fab {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: none; background: var(--accent); color: var(--accent-contrast);
+  font-size: 30px; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center;
+}
+.dash-fab:hover { filter: brightness(1.06); }
+
+.dash-fab-menu {
+  position: absolute; inset-block-end: 66px; inset-inline-end: 0;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  padding: 6px; min-width: 236px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.dash-fab-item {
+  display: flex; align-items: center; gap: 10px;
+  text-align: start; background: transparent; border: 0; color: var(--text);
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.dash-fab-item:hover { background: var(--bg-elev-2); }
+.dfi-icon { font-size: 18px; flex: 0 0 auto; }
+.dfi-text { display: flex; flex-direction: column; min-width: 0; }
+.dfi-label { font-weight: 600; }
+.dfi-desc { font-size: 12px; color: var(--text-dim); }
+
+/* ---------- per-document notes (file page) ---------- */
+
+/* floating "+" button, bottom-right; only while a file is open, below the drawer/modals */
+.doc-fab-wrap { position: fixed; inset-block-end: 20px; inset-inline-end: 20px; z-index: 20; display: none; }
+body.file-open .doc-fab-wrap { display: block; }
+.doc-fab {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: none; background: var(--accent); color: var(--accent-contrast);
+  font-size: 30px; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center;
+}
+.doc-fab:hover { filter: brightness(1.06); }
+.doc-fab-menu {
+  position: absolute; inset-block-end: 66px; inset-inline-end: 0;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  padding: 6px; min-width: 236px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.doc-fab-item {
+  display: flex; align-items: center; gap: 10px;
+  text-align: start; background: transparent; border: 0; color: var(--text);
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; font: inherit;
+}
+.doc-fab-item:hover { background: var(--bg-elev-2); }
+
+/* collapsible notes panel, top-right; only while a file is open */
+.doc-notes-panel {
+  position: fixed; inset-block-start: calc(var(--topbar-h) + 12px + var(--warning-h, 0px)); inset-inline-end: 12px;
+  width: 300px; min-width: 220px; max-width: min(80vw, 720px);
+  height: auto; max-height: calc(100vh - var(--topbar-h) - var(--warning-h, 0px) - 24px);
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  z-index: 20; display: none; flex-direction: column; overflow: hidden;
+}
+body.file-open .doc-notes-panel { display: flex; }
+.doc-notes-panel.collapsed { height: auto; }
+
+/* drag handle on the panel's leading (left) edge to resize its width */
+.doc-notes-resize {
+  position: absolute; inset-block-start: 0; inset-inline-start: -3px; inset-block-end: 0;
+  width: 7px; cursor: ew-resize; z-index: 1; touch-action: none;
+}
+.doc-notes-resize::before {
+  content: ''; position: absolute; inset-block-start: 0; inset-inline-start: 3px; inset-block-end: 0;
+  width: 1px; background: var(--border);
+}
+.doc-notes-resize:hover::before, .doc-notes-resize.active::before { background: var(--accent); width: 2px; inset-inline-start: 2.5px; }
+.doc-notes-panel.collapsed .doc-notes-resize { display: none; }
+.doc-notes-head {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  border-block-end: 1px solid var(--border); flex: 0 0 auto;
+}
+.doc-notes-panel.collapsed .doc-notes-head { border-block-end: 0; }
+.doc-notes-toggle {
+  display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0;
+  background: transparent; border: 0; color: var(--text); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 2px 4px; border-radius: 6px; text-align: start;
+}
+.doc-notes-toggle:hover { background: var(--bg-elev-2); }
+.doc-notes-toggle .chev { transition: transform .15s ease; flex: 0 0 auto; }
+.doc-notes-panel.collapsed .doc-notes-toggle .chev { transform: rotate(-90deg); }
+.doc-notes-title { flex: 1 1 auto; }
+.doc-notes-count {
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px;
+  background: var(--bg-elev-2); color: var(--text-dim);
+  font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;
+}
+.doc-notes-list {
+  padding: 10px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto; min-height: 0; direction: rtl;
+  /* Keep the scrollbar narrow and unobtrusive. Firefox uses the standard property;
+     WebKit browsers use the pseudo-elements below. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-dim) transparent;
+}
+/* Children keep left-to-right text; the list is flipped only so the scrollbar sits left. */
+.doc-notes-list > * { direction: ltr; }
+.doc-notes-list::-webkit-scrollbar { width: 4px; }
+.doc-notes-list::-webkit-scrollbar-track { background: transparent; }
+.doc-notes-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-dim) 50%, transparent);
+  border-radius: 2px;
+}
+.doc-notes-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+.doc-notes-panel.collapsed .doc-notes-list { display: none; }
+.doc-notes-empty { margin: 4px 2px; color: var(--text-dim); font-size: 13px; }
+
+/* a note card in the panel: rendered markdown body + an actions row (or an inline editor).
+   flex: 0 0 auto keeps each card at its natural content height — without it, flex-shrink
+   (the default for flex items) squeezes cards to fit the list's available space instead of
+   letting the list scroll, and since the card clips overflow, that hides the body/buttons. */
+.doc-note { flex: 0 0 auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); overflow: hidden; }
+.doc-note-body { max-width: none; margin: 0; padding: 10px 12px; font-size: 14px; }
+.doc-note-body > :first-child { margin-block-start: 0; }
+.doc-note-body > :last-child { margin-block-end: 0; }
+.doc-note-actions {
+  display: flex; gap: 6px; justify-content: flex-end;
+  padding: 6px 8px; border-block-start: 1px solid var(--border);
+}
+.doc-note-act {
+  background: transparent; border: 1px solid var(--border); color: var(--text);
+  font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+}
+.doc-note-act:hover { background: var(--bg-elev-2); }
+.doc-note-act.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.doc-note-act.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.doc-note-act.rel { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.doc-note-act.rel:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.note-ref-count { font-size: 10px; font-weight: 700; color: var(--accent-contrast); background: var(--accent); min-width: 14px; height: 14px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; }
+
+/* local analysis chat panel: docked to the left edge, full height (independent of the
+   notes panel, which stays on the right). */
+.ai-panel {
+  position: fixed;
+  inset-block-start: calc(var(--topbar-h) + var(--warning-h, 0px) + 12px);
+  inset-block-end: 12px;
+  inset-inline-start: 12px;
+  width: 300px; min-width: 220px; max-width: min(80vw, 720px);
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 12px; box-shadow: var(--shadow);
+  z-index: 20; display: none; flex-direction: column; overflow: hidden;
+}
+body.file-open.ai-enabled .ai-panel { display: flex; }
+.ai-panel.collapsed { inset-block-end: auto; }
+.ai-panel.collapsed .doc-notes-resize { display: none; }
+.ai-panel.collapsed .doc-notes-head { border-block-end: 0; }
+.ai-panel.collapsed .ai-panel-status,
+.ai-panel.collapsed .ai-panel-messages,
+.ai-panel.collapsed .ai-panel-composer { display: none; }
+/* the resize handle sits on the panel's leading edge for a right-docked panel, but this
+   one is left-docked, so its drag handle moves to the trailing (right) edge instead */
+.ai-panel .doc-notes-resize { inset-inline-start: auto; inset-inline-end: -3px; }
+.ai-panel .doc-notes-resize::before { inset-inline-start: auto; inset-inline-end: 3px; }
+
+.ai-panel-status {
+  margin: 8px 10px 0; padding: 6px 8px; border-radius: 8px;
+  background: var(--bg-elev-2); color: var(--text-dim); font-size: 12px;
+}
+
+.ai-panel-messages {
+  padding: 10px; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto; min-height: 0; direction: rtl;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-dim) transparent;
+}
+.ai-panel-messages > * { direction: ltr; }
+.ai-panel-messages::-webkit-scrollbar { width: 4px; }
+.ai-panel-messages::-webkit-scrollbar-track { background: transparent; }
+.ai-panel-messages::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-dim) 50%, transparent);
+  border-radius: 2px;
+}
+.ai-panel-messages::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+.ai-panel-empty { margin: 4px 2px; color: var(--text-dim); font-size: 13px; }
+
+.ai-msg { flex: 0 0 auto; border-radius: 10px; padding: 8px 10px; font-size: 14px; max-width: 100%; }
+.ai-msg.user { background: var(--accent); color: var(--accent-contrast); align-self: flex-end; }
+.ai-msg.assistant { background: var(--bg); border: 1px solid var(--border); align-self: flex-start; width: 100%; }
+.ai-msg.assistant.pending::after {
+  content: ''; display: inline-block; width: 6px; height: 6px; margin-inline-start: 4px;
+  border-radius: 50%; background: var(--text-dim); animation: ai-pulse 1s ease-in-out infinite;
+}
+@keyframes ai-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+.ai-msg-body { max-width: none; margin: 0; font-size: 14px; }
+.ai-msg-body > :first-child { margin-block-start: 0; }
+.ai-msg-body > :last-child { margin-block-end: 0; }
+.ai-msg.user .ai-msg-body { color: var(--accent-contrast); }
+.ai-msg-error { color: var(--danger); font-size: 13px; }
+
+.ai-sources { margin-block-start: 6px; padding-block-start: 6px; border-block-start: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-source-chip {
+  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  font: inherit; font-size: 11px; padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ai-source-chip:hover { background: var(--bg-elev-2); color: var(--text); }
+
+.ai-panel-composer {
+  display: flex; gap: 6px; align-items: flex-end;
+  padding: 8px; border-block-start: 1px solid var(--border); flex: 0 0 auto;
+}
+.ai-panel-input {
+  flex: 1 1 auto; resize: none; font: inherit; font-size: 13px;
+  padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); min-height: 34px; max-height: 120px;
+}
+.ai-panel-input:focus { outline: none; border-color: var(--accent); }
+.ai-panel-composer .btn { flex: 0 0 auto; }
+
+/* a document's note cluster on the dashboard board: a titled, bordered stack, visually
+   distinct from the single sticky notes (accent border + accent header, auto height) */
+.dash-group {
+  position: absolute;
+  width: 260px; max-height: 340px;
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.dash-group.dragging { cursor: grabbing; }
+.dash-group-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex: 0 0 auto;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-block-end: 1px solid var(--border);
+}
+.dash-group-title {
+  font-weight: 700; font-size: 13px; color: var(--text); flex: 1 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dash-group-badge {
+  font-size: 11px; color: var(--danger); flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 6px; padding: 0 5px;
+}
+.dash-group-count {
+  min-width: 20px; height: 18px; padding: 0 6px; border-radius: 9px; flex: 0 0 auto;
+  background: var(--accent); color: var(--accent-contrast);
+  font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-group-notes { padding: 8px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.dash-group-note {
+  max-width: none; margin: 0; padding: 8px 10px; font-size: 13px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+}
+.dash-group-note > :first-child { margin-block-start: 0; }
+.dash-group-note > :last-child { margin-block-end: 0; }
+
+/* note editor modal: source + live preview per side */
+.note-edit-body { padding: 14px 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+.note-edit-row { display: flex; flex-direction: column; gap: 6px; }
+.note-edit-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.note-edit-grid {
+  display: grid; grid-template-columns: 1fr 1fr; height: 200px;
+  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.note-edit-src { height: 100%; padding: 12px 14px; }
+.note-edit-preview { max-width: none; margin: 0; padding: 12px 14px; overflow: auto; }
+
+/* full-size note view: the whole card body scrolls */
+.note-full { flex: 1 1 auto; min-height: 0; max-width: none; margin: 0; padding: 22px 26px; overflow: auto; }
+
+@media (max-width: 760px) {
+  .note-edit-grid { grid-template-columns: 1fr; height: auto; }
+  .note-edit-src { height: 150px; border-block-end: 1px solid var(--border); }
+}
+
+.welcome { max-width: 560px; margin: 12vh auto; text-align: center; padding: 20px; }
+.welcome h1 { margin: 0 0 8px; }
+.welcome p { color: var(--text-dim); margin: 0 0 18px; }
+
+.viewer { max-width: 920px; margin: 0 auto; }
+
+.editor { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
+.editor-text {
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  resize: none;
+  padding: 20px 24px;
+  font: 13.5px/1.6 ui-monospace, "Cascadia Code", "Consolas", monospace;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}
+.editor-preview { overflow: auto; }
+@media (max-width: 760px) {
+  .editor { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .editor-text { border-inline-end: 0; border-block-end: 1px solid var(--border); }
+}
+
+/* ---------- markdown body ---------- */
+.markdown-body { word-wrap: break-word; }
+.markdown-body h1, .markdown-body h2 { border-block-end: 1px solid var(--border); padding-block-end: .3em; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5 { margin-block: 1.2em .6em; line-height: 1.25; }
+.markdown-body p, .markdown-body ul, .markdown-body ol { margin-block: 0 1em; }
+.markdown-body a { color: var(--accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body code {
+  background: var(--bg-elev-2);
+  padding: .15em .4em;
+  border-radius: 5px;
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-size: .9em;
+}
+.markdown-body pre {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow: auto;
+}
+.markdown-body pre code { background: transparent; padding: 0; font-size: .88em; }
+.markdown-body blockquote {
+  margin: 0 0 1em;
+  padding-inline-start: 14px;
+  border-inline-start: 3px solid var(--border);
+  color: var(--text-dim);
+}
+.markdown-body table { border-collapse: collapse; margin-block-end: 1em; display: block; overflow: auto; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--border); padding: 7px 11px; text-align: start; }
+.markdown-body th { background: var(--bg-elev); }
+.markdown-body tr:nth-child(2n) td { background: color-mix(in srgb, var(--bg-elev) 50%, transparent); }
+.markdown-body img { max-width: 100%; }
+.markdown-body hr { border: 0; border-block-start: 1px solid var(--border); margin: 1.6em 0; }
+.markdown-body pre.mermaid {
+  background: transparent;
+  border: 0;
+  text-align: center;
+  padding: 8px 0;
+}
+.markdown-body pre.mermaid svg { max-width: 100%; height: auto; }
+
+/* ---------- modal ---------- */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, .4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 60; padding: 16px;
+}
+/* the disk file-picker can open on top of another modal (e.g. Relations) */
+#browseModal { z-index: 65; }
+.modal-card {
+  background: var(--bg); color: var(--text);
+  width: min(680px, 96vw); max-height: 86vh;
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-head { display: flex; align-items: center; padding: 14px 16px; border-block-end: 1px solid var(--border); }
+.modal-head .icon-btn { margin-inline-start: auto; }
+.browse-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 0; }
+.crumb { color: var(--text-dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.input {
+  width: 100%;
+  border: 1px solid var(--border); background: var(--bg-elev); color: var(--text);
+  padding: 8px 10px; border-radius: 8px; outline: none; font-size: 14px;
+}
+.input:focus { border-color: var(--accent); }
+.browse-bar + .input { margin: 10px 16px 0; width: auto; }
+.browse-list { list-style: none; margin: 10px 0; padding: 0 8px; overflow: auto; flex: 1 1 auto; }
+.browse-list li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+}
+.browse-list li:hover { background: var(--bg-elev-2); }
+.browse-list li.disabled { opacity: .45; cursor: not-allowed; }
+.browse-list li .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.modal-foot { display: flex; gap: 8px; padding: 12px 16px; border-block-start: 1px solid var(--border); }
+
+/* the relations "Pick a document" picker reuses the drawer file tree inside a modal
+   card; min-height:0 lets it scroll once the card reaches its max-height */
+.pick-tree { min-height: 0; }
+
+/* file-details definition list */
+.details { margin: 0; padding: 16px 18px; display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; align-items: baseline; overflow: auto; }
+.details dt { color: var(--text-dim); font-size: 13px; }
+.details dd { margin: 0; word-break: break-word; }
+.details dd.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.details dd.muted { color: var(--text-dim); }
+
+/* ---------- relations modal ---------- */
+/* Sit below the fixed app header so it stays visible; the backdrop and card
+   fill only the area under the header. */
+.modal:has(.modal-card.wide) { padding: 0; inset-block-start: var(--topbar-h); }
+.modal-card.wide {
+  width: 100%; height: 100%;
+  max-width: 100vw; max-height: calc(100vh - var(--topbar-h));
+  border: none; border-radius: 0;
+}
+.modal-head .rel-hint { color: var(--text-dim); font-size: 12px; margin-inline-start: 12px; }
+.relations { flex: 1 1 auto; min-height: 0; display: flex; }
+.rel-graph { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; background: var(--bg-elev); }
+.rel-toolbar { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 2; display: flex; gap: 4px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; box-shadow: var(--shadow); }
+.rel-toolbar .icon-btn { width: 28px; height: 28px; font-size: 15px; }
+.rel-viewport { position: absolute; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+.rel-viewport.grabbing { cursor: grabbing; }
+.rel-stage { position: absolute; inset-block-start: 0; inset-inline-start: 0; transform-origin: 0 0; will-change: transform; }
+.rel-error { padding: 24px; color: var(--text-dim); }
+
+/* 2D/3D toggle in the modal head */
+.rel-modes { margin-inline-start: 8px; }
+.rel-modes .seg-btn { padding: 3px 12px; font-size: 13px; }
+.modal-head .rel-modes + .icon-btn { margin-inline-start: 8px; }
+
+/* custom 2D graph (SVG) */
+.rel-svg { display: block; font-family: inherit; }
+.rel-node-box { fill: var(--bg-elev); stroke: var(--border); stroke-width: 1.5px; }
+.rel-node:hover .rel-node-box { fill: var(--bg-elev-2); }
+.rel-node-label { fill: var(--text); font-size: 13px; pointer-events: none; }
+.rel-node.rel-active .rel-node-box { stroke: var(--accent); stroke-width: 2.5px; }
+.rel-node.rel-missing .rel-node-label { fill: var(--danger); }
+.rel-edge { stroke: var(--text-dim); stroke-width: 1.6px; }
+.rel-edge-sib { stroke-dasharray: 5 4; }
+
+/* 3D graph (three.js canvas) */
+.rel-3d { position: absolute; inset: 0; }
+.rel-3d.hidden { display: none; }
+.rel-3d-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+
+.rel-companions { flex: 0 0 244px; min-height: 0; display: flex; flex-direction: column;
+  border-inline-start: 1px solid var(--border); overflow-y: auto; }
+
+/* collapsible side-menu sections (all start collapsed) */
+.rel-section { flex: 0 0 auto; display: flex; flex-direction: column; min-height: 0;
+  border-block-end: 1px solid var(--border); }
+.rel-section.open { flex: 0 1 auto; }
+.rel-section-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 10px;
+  cursor: pointer; user-select: none; }
+.rel-section-head:hover { background: var(--bg-elev); }
+.rel-section-head .btn { padding: 4px 9px; margin-inline-start: auto; flex: 0 0 auto; }
+.rel-caret { flex: 0 0 auto; font-size: 11px; color: var(--text-dim); transition: transform .15s ease; }
+.rel-section.open > .rel-section-head .rel-caret { transform: rotate(90deg); }
+.rel-section-body { display: none; min-height: 0; overflow: auto; }
+.rel-section.open > .rel-section-body { display: block; }
+.rel-section-body .browse-list { margin: 2px 0 10px; }
+
+.rel-comp-list li .name { cursor: pointer; }
+
+/* section-header "?" help icon + its explanation modal */
+.rel-head-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rel-help-btn {
+  width: 18px; height: 18px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 50%; color: var(--text-dim);
+}
+.rel-help-btn:hover { color: var(--text); border-color: var(--accent); }
+.rel-help-modal { z-index: 70; } /* above the relations modal */
+.rel-help-body { padding: 14px 18px; overflow: auto; font-size: 14px; line-height: 1.55; }
+.rel-help-body p { margin: 0 0 10px; }
+.rel-help-body ul { margin: 0; padding-inline-start: 18px; }
+.rel-help-body li { margin-block-end: 4px; }
+.rel-help-body pre {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin: 0 0 10px; overflow: auto; font-size: 12.5px;
+}
+.rel-help-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.rel-rm { width: 24px; height: 24px; font-size: 13px; opacity: .55; flex: 0 0 auto; }
+.rel-comp-list li:hover .rel-rm { opacity: 1; }
+
+/* colors-map section (imported schemas that recolor node borders) */
+.rel-cmap-list li .name { cursor: pointer; }
+.rel-cmap-list li:hover .rel-rm { opacity: 1; }
+.rel-cmap-list li.rel-cmap-active { background: var(--bg-elev-2); }
+.rel-cmap-list li.rel-cmap-active .name { font-weight: 600; color: var(--accent); }
+
+/* export button + attachments section */
+/* group Export + Download (icon) immediately to the left of the 2D/3D toggle */
+.modal-head .rel-export-btn { padding: 4px 11px; margin-inline-start: auto; }
+.modal-head .rel-download-btn { margin-inline-start: 6px; }
+/* the action controls never shrink/clip; the hint yields first (and hides when tight) */
+.modal-head .rel-export-btn, .modal-head .rel-download-btn, .modal-head .rel-modes { flex: 0 0 auto; }
+@media (max-width: 760px) { .modal-head .rel-hint { display: none; } }
+.rel-attach-list a.name { color: var(--accent); text-decoration: none; overflow: hidden; text-overflow: ellipsis; }
+.rel-attach-list a.name:hover { text-decoration: underline; }
+.rel-attach-list li:hover .rel-rm { opacity: 1; }
+/* per-row download icon button */
+.rel-att-dl { width: 24px; height: 24px; opacity: .55; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+.rel-attach-list li:hover .rel-att-dl { opacity: 1; }
+.rel-att-dl.disabled { opacity: .25; pointer-events: none; }
+
+/* ---------- toasts ---------- */
+.toasts {
+  position: fixed; inset-block-end: 18px; inset-inline-end: 18px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 80;
+}
+.toast {
+  background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--border); border-inline-start: 4px solid var(--accent);
+  border-radius: 8px; padding: 10px 14px; box-shadow: var(--shadow);
+  max-width: 360px; font-size: 14px;
+  animation: toast-in .18s ease;
+}
+.toast.error { border-inline-start-color: var(--danger); }
+.toast.ok { border-inline-start-color: var(--ok); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- graph (Mermaid) fullscreen viewer ---------- */
+/* hover tools (copy + expand) on each rendered diagram */
+.markdown-body pre.mermaid.gv-host { position: relative; }
+.gv-tools {
+  position: absolute;
+  inset-block-start: 6px; inset-inline-end: 6px;
+  display: flex; gap: 4px;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.markdown-body pre.mermaid.gv-host:hover .gv-tools,
+.gv-tools:focus-within { opacity: 1; }
+.gv-tool {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.gv-tool:hover { background: var(--bg-elev-2); }
+.gv-tool svg { display: block; }
+
+/* fullscreen overlay */
+.gv-overlay {
+  position: fixed; inset: 0;
+  display: none;
+  z-index: 70;                       /* above drawer(45)/topbar(40), below toasts(80) */
+  background: color-mix(in srgb, var(--bg) 88%, #000);
+}
+.gv-overlay.open { display: block; }
+.gv-viewport {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;                /* pointer-drag pans instead of scrolling */
+}
+.gv-viewport.grabbing { cursor: grabbing; }
+.gv-stage {
+  position: absolute; inset-block-start: 0; inset-inline-start: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.gv-stage svg { display: block; }
+.gv-toolbar {
+  position: absolute; inset-block-start: 12px; inset-inline-end: 12px;
+  z-index: 1;
+  display: flex; gap: 6px;
+  padding: 6px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.gv-toolbar .icon-btn { width: 34px; height: 34px; }
+
+/* ---------- note editor modal (add/edit) ---------- */
+.modal-card.note-editor { width: min(900px, 96vw); max-height: 86vh; }
+.note-editor-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; height: 60vh;
+}
+.note-editor-text {
+  flex: 1 1 50%; min-width: 0; min-height: 0;
+  padding: 12px; font: inherit; font-size: 14px; line-height: 1.5;
+  border: none; border-inline-end: 1px solid var(--border);
+  background: var(--bg); color: var(--text); resize: none; outline: none;
+}
+.note-editor-text:focus { background: var(--bg-elev); }
+.note-editor-preview {
+  flex: 1 1 50%; min-width: 0; min-height: 0;
+  padding: 12px; overflow: auto;
+  background: var(--bg-elev); color: var(--text);
+}
+
+/* ---------- note ↔ highlight arrows ---------- */
+.note-refs-overlay {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 55;
+}
+.note-refs-overlay .note-ref-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  marker-end: url(#note-ref-arrowhead);
+  pointer-events: none;
+}
+.note-refs-overlay .note-ref-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.note-ref-highlight {
+  text-decoration: underline solid #000 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

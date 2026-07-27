@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-vector"
+version = "0.2.0"
+description = "A tiny local database with scalar indexes, full-text search and hnswlib vector search"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+    "hnswlib>=0.8.0",
+]
+
+[tool.setuptools]
+py-modules = ["local_vector_db"]

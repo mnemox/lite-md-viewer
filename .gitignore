@@ -1,7 +1,3 @@
-# Build output
-bin/
-obj/
-
 # SQLite database (created at runtime)
 *.db
 *.db-shm
@@ -9,6 +5,18 @@ obj/
 
 # Graph export bundles (created at runtime)
 attachments/
+
+# Vector index files (rebuildable from the _vectors table)
+vectors/
+*.hnsw
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
 
 # IDE
 .vs/
