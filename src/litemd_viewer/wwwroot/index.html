@@ -158,8 +158,8 @@
       <div id="docNotesList" class="doc-notes-list"></div>
     </aside>
 
-    <!-- local analysis chat panel (top-right, below Notes); only shown when local analysis
-         is enabled (see run.bat --setup-ai) and a document is open -->
+    <!-- local analysis chat panel (left edge, full height); only shown when local analysis
+         is enabled (see run.bat --setup-ai), a document is open, and the user presses Ask -->
     <aside id="aiPanel" class="ai-panel" aria-label="Ask about this document">
       <div id="aiPanelResize" class="doc-notes-resize" title="Drag to resize" aria-hidden="true"></div>
       <div class="doc-notes-head">
@@ -168,6 +168,7 @@
           <span class="doc-notes-title">Ask</span>
         </button>
         <button id="aiPanelClear" class="icon-btn" title="Clear conversation" aria-label="Clear conversation">🗑</button>
+        <button id="aiPanelClose" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
       <div id="aiPanelStatus" class="ai-panel-status hidden"></div>
       <div id="aiPanelMessages" class="ai-panel-messages"></div>

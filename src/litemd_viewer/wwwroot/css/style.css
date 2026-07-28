@@ -74,6 +74,7 @@ body {
 .topbar .icon-btn { width: 32px; height: 32px; font-size: 16px; }
 .topbar .seg-btn  { padding: 4px 12px; }
 .topbar .btn      { padding: 5px 11px; }
+.topbar .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 
 /* file controls are hidden until a file is open */
 #fileTitle, #fileStatus, .topbar .bar-center { display: none; }
@@ -651,7 +652,8 @@ body.file-open .doc-notes-panel { display: flex; }
   border-radius: 12px; box-shadow: var(--shadow);
   z-index: 20; display: none; flex-direction: column; overflow: hidden;
 }
-body.file-open.ai-enabled .ai-panel { display: flex; }
+/* hidden until the user opens it via the Ask button (see #askBtn in aichat.js) */
+body.file-open.ai-enabled .ai-panel.open { display: flex; }
 .ai-panel.collapsed { inset-block-end: auto; }
 .ai-panel.collapsed .doc-notes-resize { display: none; }
 .ai-panel.collapsed .doc-notes-head { border-block-end: 0; }

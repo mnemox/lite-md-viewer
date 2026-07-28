@@ -76,11 +76,8 @@ export function initAiChat() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
 
-  $('askBtn').onclick = () => {
-    ensureExpanded();
-    $('aiPanel').scrollIntoView({ block: 'nearest' });
-    input.focus();
-  };
+  $('aiPanelClose').onclick = () => setOpen(false);
+  $('askBtn').onclick = () => setOpen(!panel.classList.contains('open'));
 
   $('aiPanelMessages').addEventListener('click', (e) => {
     const chip = e.target.closest('.ai-source-chip');
@@ -107,6 +104,7 @@ export async function loadAiChat(id) {
 export function clearAiChat() {
   fileId = null;
   renderMessages([]);
+  setOpen(false);
 }
 
 // ---------- status ----------
@@ -311,9 +309,16 @@ function setCollapsed(on) {
   $('aiPanelToggle').setAttribute('aria-expanded', String(!on));
 }
 
-function ensureExpanded() {
-  if ($('aiPanel').classList.contains('collapsed')) {
-    setCollapsed(false);
-    localStorage.setItem(COLLAPSE_KEY, '0');
+function setOpen(on) {
+  const panel = $('aiPanel');
+  panel.classList.toggle('open', on);
+  $('askBtn').classList.toggle('active', on);
+  if (on) {
+    if (panel.classList.contains('collapsed')) {
+      setCollapsed(false);
+      localStorage.setItem(COLLAPSE_KEY, '0');
+    }
+    panel.scrollIntoView({ block: 'nearest' });
+    $('aiPanelInput').focus();
   }
 }
