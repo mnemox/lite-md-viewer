@@ -9,6 +9,7 @@ import { initDashboard, renderDashboardNotes } from './dashboard.js';
 import { initDocNotes, loadDocNotes, clearDocNotes, refreshDocHighlights } from './docnotes.js';
 import { initSearch, syncSearchScope } from './search.js';
 import { initAiChat, loadAiChat, clearAiChat } from './aichat.js';
+import { initRouter, navigate, startRouter } from './router.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -60,7 +61,7 @@ async function refreshTree() {
       // The file appeared or vanished on disk since the last poll → re-fetch so the content
       // source (disk vs DB) and the read-only warning strip stay in sync (the strip is shown
       // until the file is back, per requirement).
-      if (!!updated.missing !== wasMissing) { openFile(updated.id, { push: false }); return; }
+      if (!!updated.missing !== wasMissing) { loadFileContent(updated.id, state.mode); return; }
     }
   }
 
@@ -71,7 +72,7 @@ async function refreshTree() {
 }
 
 const treeHandlers = {
-  openFile,
+  openFile: goToFile,
   renameFile: async (id, title) => { try { await api.patchFile(id, { title }); await refreshTree(); } catch (e) { toast(e.message, 'error'); } },
   moveFile: async (id, folderId) => {
     try { await api.patchFile(id, folderId == null ? { moveToRoot: true } : { folderId }); await refreshTree(); }
@@ -100,10 +101,37 @@ const treeHandlers = {
   },
 };
 
+// ---------- routing ----------
+// The single handler every route -- welcome, notes, or a file -- renders through.
+// Called by router.js; never call the render functions below directly to navigate,
+// use navigate() (or the goToFile/setMode/openDashboard helpers that wrap it) instead.
+async function applyRoute(route) {
+  if (route.name === 'file') {
+    if (state.active && state.active.id === route.fileId) {
+      applyMode(route.mode);   // same file already loaded: just switch view/edit, no re-fetch
+      return;
+    }
+    await loadFileContent(route.fileId, route.mode);
+    return;
+  }
+  if (route.name === 'notes') { showNotes(); return; }
+  showWelcome();
+}
+
+// Navigate to a file (tree clicks, search results, relations graph nodes, newly
+// created/added files, ...).
+function goToFile(id, mode = 'view') {
+  navigate({ name: 'file', fileId: id, mode });
+}
+
 // ---------- dashboard ----------
 // An empty screen shown in the same layout. Not a file, so the center toolbar
 // (View/Edit/Details/Relations) stays hidden.
 function openDashboard() {
+  navigate({ name: 'notes' });
+}
+
+function showNotes() {
   closeRelations();
   state.active = null; state.text = '';
   applyReadOnly(false);
@@ -120,11 +148,13 @@ function openDashboard() {
   clearDocNotes();
   clearAiChat();
   syncSearchScope();     // no document open: the in-document scope lapses
-  if (urlFileId() != null) history.replaceState({}, '', location.pathname);
 }
 
 // ---------- file open / view / edit ----------
-async function openFile(id, { push = true } = {}) {
+// Pure DOM + fetch: loads and renders a file's content. Never touches history/URL --
+// that's navigate()'s job -- so it's also reused for in-place content refreshes (e.g.
+// refreshTree's disk-status-flip) that shouldn't push or change a route.
+async function loadFileContent(id, mode) {
   // leaving the dashboard for a real file
   document.body.classList.remove('dashboard');
   $('dashboardBtn').classList.remove('active');
@@ -141,31 +171,23 @@ async function openFile(id, { push = true } = {}) {
   catch (e) {
     $('loading').classList.add('hidden');
     if (!state.active) $('welcome').classList.remove('hidden');
-    toast(e.message, 'error'); await refreshTree(); return;
+    toast(e.message, 'error'); await refreshTree();
+    // keep the URL in agreement with whatever ended up on screen
+    navigate(state.active ? { name: 'file', fileId: state.active.id, mode: state.mode } : { name: 'welcome' }, { push: false });
+    return;
   }
   state.active = state.treeData.files.find((f) => f.id === id) || { id, title: content.title, missing: !content.onDisk };
   state.text = content.text;
   state.docPath = content.fullPath;
   document.body.classList.add('file-open');
   applyReadOnly(!content.onDisk);   // content came from the DB mirror → lock + show strip
-  setMode('view');
+  applyMode(mode);
   updateToolbar();
   renderTree($('tree'), state.treeData, treeHandlers, id);
   loadDocNotes(id);
   loadAiChat(id);
   syncSearchScope();     // the toggle names the open document, so it moves with it
   $('loading').classList.add('hidden');
-  if (push) setFileUrl(id);
-}
-
-// ---------- deep-linking (URL + history) ----------
-function setFileUrl(id) {
-  const url = location.pathname + '?file=' + encodeURIComponent(id);
-  if (location.pathname + location.search !== url) history.pushState({ fileId: id }, '', url);
-}
-function urlFileId() {
-  const v = new URLSearchParams(location.search).get('file');
-  return v == null || v === '' ? null : Number(v);
 }
 
 function updateToolbar() {
@@ -198,8 +220,11 @@ function updateDocNotesOffset() {
 }
 
 let previewTimer = null;
-function setMode(mode) {
-  if (mode === 'edit' && state.readOnly) return;   // can't edit the DB copy of a missing file
+
+// Pure DOM: switches the view/edit panes for the active file. Called by applyRoute (so
+// it never re-fetches content) -- never call this directly to change mode, use setMode().
+function applyMode(mode) {
+  if (mode === 'edit' && state.readOnly) mode = 'view'; // can't edit the DB copy of a missing file
   state.mode = mode;
   const view = mode === 'view';
   $('viewModeBtn').classList.toggle('active', view);
@@ -213,6 +238,13 @@ function setMode(mode) {
     $('editorText').value = state.text;
     Promise.resolve(renderDoc(state.docPath, state.text, $('editorPreview'))).then(() => refreshDocHighlights());
   }
+}
+
+// View/Edit tab clicks: an in-place mode change on the same file, so it replaces the
+// current history entry rather than pushing a new one.
+function setMode(mode) {
+  if (!state.active || (mode === 'edit' && state.readOnly)) return;
+  navigate({ name: 'file', fileId: state.active.id, mode }, { push: false });
 }
 
 async function save() {
@@ -247,7 +279,7 @@ async function showDetails() {
 function showRelations() {
   if (!state.active) return;
   // The graph reloads the background document when a node is opened.
-  openRelations(state.active.id, (id) => openFile(id));
+  openRelations(state.active.id, (id) => goToFile(id));
 }
 
 // ---------- remove / delete ----------
@@ -255,7 +287,7 @@ async function removeFromList(file) {
   try {
     await api.removeFile(file.id);
   } catch (e) { toast(e.message, 'error'); return; }
-  if (state.active && state.active.id === file.id) clearActive();
+  if (state.active && state.active.id === file.id) navigate({ name: 'welcome' });
   await refreshTree();
   toast('Removed from list', 'ok');
 }
@@ -264,13 +296,15 @@ async function deleteDisk(file) {
   if (!(await confirmDialog(`Delete “${file.title}” from disk? This cannot be undone.`, { okLabel: 'Delete', danger: true }))) return;
   try {
     await api.deleteDisk(file.id);
-    if (state.active && state.active.id === file.id) clearActive();
+    if (state.active && state.active.id === file.id) navigate({ name: 'welcome' });
     await refreshTree();
     toast('Deleted from disk', 'ok');
   } catch (e) { toast(e.message, 'error'); }
 }
 
-function clearActive() {
+// Pure DOM: resets the layout to the empty welcome screen. Called by applyRoute --
+// navigate to it (see removeFromList/deleteDisk above) rather than calling this directly.
+function showWelcome() {
   state.active = null; state.text = '';
   applyReadOnly(false);
   clearDocNotes();
@@ -283,7 +317,6 @@ function clearActive() {
   $('editor').classList.add('hidden');
   $('loading').classList.add('hidden');
   $('welcome').classList.remove('hidden');
-  if (urlFileId() != null) history.replaceState({}, '', location.pathname);
 }
 
 // ---------- add file / folder ----------
@@ -293,9 +326,9 @@ function startAddFile() {
       const dto = await api.addFile(path);
       toast('Added', 'ok');
       await refreshTree();
-      openFile(dto.id);
+      goToFile(dto.id);
     } catch (e) {
-      if (e.status === 409 && e.data?.id) { toast('Already managed'); openFile(e.data.id); }
+      if (e.status === 409 && e.data?.id) { toast('Already managed'); goToFile(e.data.id); }
       else toast(e.message, 'error');
     }
   });
@@ -320,9 +353,9 @@ function startNewFile() {
       const dto = await api.newFile(dir, name);
       toast('Created', 'ok');
       await refreshTree();
-      openFile(dto.id);
+      goToFile(dto.id);
     } catch (e) {
-      if (e.status === 409 && e.data?.id) { toast('Already managed'); openFile(e.data.id); }
+      if (e.status === 409 && e.data?.id) { toast('Already managed'); goToFile(e.data.id); }
       else toast(e.message, 'error');
     }
   }, { mode: 'create' });
@@ -371,10 +404,11 @@ async function init() {
   catch { applyTheme(currentTheme()); }
 
   initBrowse();
-  initDashboard(openFile);
+  initDashboard(goToFile);
   initDocNotes();
   initAiChat();
-  initSearch(openFile, () => state.active);
+  initSearch(goToFile, () => state.active);
+  initRouter(applyRoute);
 
   // Any header button (except Relations itself, which opens it) closes the relations modal.
   document.querySelector('.topbar').addEventListener('click', (e) => {
@@ -424,17 +458,8 @@ async function init() {
 
   await refreshTree();
 
-  // Deep-linking: open the file named in the URL (e.g. on refresh) and react to
-  // browser back/forward.
-  window.addEventListener('popstate', () => {
-    const id = urlFileId();
-    // Same file already active (e.g. Back that only closed the relations modal): nothing to do.
-    if (id != null && state.active && id === state.active.id) return;
-    if (id != null && state.treeData.files.some((f) => f.id === id)) openFile(id, { push: false });
-    else if (state.active) clearActive();
-  });
-  const startId = urlFileId();
-  if (startId != null && state.treeData.files.some((f) => f.id === startId)) openFile(startId, { push: false });
+  // Render whatever the current URL says (e.g. a deep link or a hard refresh).
+  startRouter();
 
   // periodic status refresh (skip while inline-editing or a menu is open)
   setInterval(() => {

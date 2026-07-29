@@ -13,12 +13,12 @@ import webbrowser
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import config
 from .db import SessionLocal, get_setting, init_db
-from .errors import not_found, register_error_handlers
+from .errors import register_error_handlers
 from .routers import (
     ai,
     attachments,
@@ -98,20 +98,28 @@ app.include_router(system.router)
 app.include_router(ai.router)
 app.include_router(ai.chat_router)
 
+
+class SpaStaticFiles(StaticFiles):
+    """Static assets, with index.html served for unmatched client-side routes.
+
+    A mount at "/" matches every path and answers its own 404, so a separate fallback
+    route would never be reached. Paths like /notes or /files/5 are owned by the
+    client-side router (see wwwroot/js/router.js) and must return the app shell on a
+    hard refresh; anything under /api stays a real 404.
+    """
+
+    async def get_response(self, path: str, scope):  # noqa: ANN001, ANN201
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not path.startswith("api"):
+                return await super().get_response("index.html", scope)
+            raise
+
+
 if config.STATIC_DIR.is_dir():
     # html=True serves index.html for a bare directory request, matching UseDefaultFiles.
-    app.mount("/", StaticFiles(directory=str(config.STATIC_DIR), html=True), name="static")
-
-
-@app.get("/{full_path:path}", include_in_schema=False)
-def spa_fallback(full_path: str) -> FileResponse:
-    """Serve index.html for unmatched client-side routes, as MapFallbackToFile did."""
-    if full_path.startswith("api/"):
-        raise not_found()
-    index = config.STATIC_DIR / "index.html"
-    if not index.is_file():
-        raise not_found()
-    return FileResponse(index)
+    app.mount("/", SpaStaticFiles(directory=str(config.STATIC_DIR), html=True), name="static")
 
 
 def should_open_browser() -> bool:
