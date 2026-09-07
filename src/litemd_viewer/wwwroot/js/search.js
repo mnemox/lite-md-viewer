@@ -12,9 +12,8 @@
 // on a run of words, which survives all three differences.
 
 import { api } from './api.js';
-import { focusDocNote } from './docnotes.js';
-import { focusDashboardNote } from './dashboard.js';
 import { navigate } from './router.js';
+import { toast, viewNoteDialog } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -319,20 +318,28 @@ async function go(hit) {
     return;
   }
 
-  // Note hits open their owning context rather than a bare file.
-  if (hit.noteKind === 'dashboard') {
-    focusDashboardNote(hit.noteId);
-    navigate({ name: 'notes' });
-    return;
-  }
-  if (hit.noteKind === 'document') {
-    focusDocNote(hit.noteId, hit.fileId);
-    await openFile(hit.fileId);
+  // Note hits open a read-only modal with the full note text.
+  if (hit.noteKind === 'dashboard' || hit.noteKind === 'document') {
+    await openNoteModal(hit);
     return;
   }
 
   await openFile(hit.fileId);
   scrollToTop();
+}
+
+async function openNoteModal(hit) {
+  try {
+    const note = await (hit.noteKind === 'dashboard'
+      ? api.dashboardNote(hit.noteId)
+      : api.docNote(hit.fileId, hit.noteId));
+    viewNoteDialog(note, {
+      fileTitle: hit.title,
+      onOpenFile: hit.noteKind === 'document' ? () => navigate({ name: 'file', fileId: hit.fileId }) : undefined,
+    });
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 // The content area is reused across documents, so its scroll offset survives the swap and

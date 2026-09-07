@@ -66,6 +66,18 @@ def list_notes(file_id: int, session: Session = Depends(get_session)) -> list[Do
     return [to_dto(n) for n in notes]
 
 
+@router.get("/{note_id}", response_model=DocNoteDto)
+def get_note(file_id: int, note_id: int, session: Session = Depends(get_session)) -> DocNoteDto:
+    note = session.scalar(
+        select(DocumentNote).where(
+            DocumentNote.id == note_id, DocumentNote.file_id == file_id
+        )
+    )
+    if note is None:
+        raise not_found()
+    return to_dto(note)
+
+
 @router.post("", response_model=DocNoteDto)
 def create_note(
     file_id: int, req: CreateDocNoteRequest, session: Session = Depends(get_session)
@@ -101,7 +113,7 @@ def create_note(
     session.add(note)
     session.commit()
     session.refresh(note)
-    get_indexer().enqueue_note(note.id, "document")
+    get_indexer().enqueue_note(note.id, "document", delay=0.0)
     return to_dto(note)
 
 
@@ -126,7 +138,7 @@ def patch_note(
     note.updated_utc = utcnow()
 
     session.commit()
-    get_indexer().enqueue_note(note.id, "document")
+    get_indexer().enqueue_note(note.id, "document", delay=0.0)
     return to_dto(note)
 
 

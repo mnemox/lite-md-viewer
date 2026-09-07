@@ -1,4 +1,6 @@
-// Small UI helpers: toasts and a styled confirm dialog.
+import { renderMarkdown } from './render.js';
+
+// Small UI helpers: toasts, styled dialogs, and a read-only note view.
 
 export function toast(message, kind = 'info', ms = 3400) {
   const wrap = document.getElementById('toasts');
@@ -132,4 +134,67 @@ export function promptDialog(title, { okLabel = 'OK', placeholder = '', value = 
     document.body.appendChild(overlay);
     input.focus();
   });
+}
+
+// Read-only modal that shows a note from the global search results.
+export function viewNoteDialog(note, { fileTitle, onOpenFile } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal';
+  overlay.innerHTML = `
+    <div class="modal-card" style="width:min(800px,96vw); max-height:86vh; display:flex; flex-direction:column;">
+      <div class="modal-head">
+        <strong class="note-view-title" dir="auto"></strong>
+        <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
+      </div>
+      <article class="viewer markdown-body note-view-body" dir="auto" style="overflow:auto; padding:18px; flex:1 1 auto;"></article>
+      <div class="modal-foot note-view-foot" style="justify-content:flex-end; gap:8px;"></div>
+    </div>`;
+
+  const titleEl = overlay.querySelector('.note-view-title');
+  const bodyEl = overlay.querySelector('.note-view-body');
+  const foot = overlay.querySelector('.note-view-foot');
+
+  let isBack = false;
+
+  function setBody(text) {
+    renderMarkdown(text || '', bodyEl);
+  }
+
+  if (note.kind === 'flip') {
+    titleEl.textContent = note.frontText?.split('\n')[0]?.trim() || 'Note';
+    setBody(note.frontText);
+    const flipBtn = document.createElement('button');
+    flipBtn.className = 'btn';
+    flipBtn.textContent = 'Flip';
+    flipBtn.onclick = () => {
+      isBack = !isBack;
+      titleEl.textContent = (isBack ? note.backText : note.frontText)?.split('\n')[0]?.trim() || 'Note';
+      setBody(isBack ? note.backText : note.frontText);
+      flipBtn.textContent = isBack ? 'Front' : 'Back';
+    };
+    foot.appendChild(flipBtn);
+  } else if (note.fileId != null) {
+    titleEl.textContent = (fileTitle || 'Note');
+    setBody(note.text);
+    if (onOpenFile) {
+      const openBtn = document.createElement('button');
+      openBtn.className = 'btn primary';
+      openBtn.textContent = 'Open file';
+      openBtn.onclick = () => { close(); onOpenFile(); };
+      foot.appendChild(openBtn);
+    }
+  } else {
+    titleEl.textContent = note.frontText?.split('\n')[0]?.trim() || 'Dashboard note';
+    setBody(note.frontText);
+  }
+
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) return close();
+    if (e.target.closest('[data-act="close"]')) close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+  overlay.querySelector('[data-act="close"]').focus();
 }

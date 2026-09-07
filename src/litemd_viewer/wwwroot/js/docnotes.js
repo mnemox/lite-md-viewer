@@ -19,7 +19,6 @@ let wired = false;
 let fileId = null;   // active document id (null when not viewing a file)
 let notes = [];      // the active document's notes
 let editingNote = null; // note currently being edited in the modal (null when adding)
-let pendingFocusNoteId = null; // note to scroll to on next render
 
 // ---------- public API ----------
 
@@ -165,25 +164,6 @@ function render() {
   }
   for (const note of notes) list.appendChild(buildNote(note));
   highlightNotes(notes);
-
-  if (pendingFocusNoteId != null) {
-    const target = list.querySelector(`.doc-note[data-id="${pendingFocusNoteId}"]`);
-    pendingFocusNoteId = null;
-    if (target) {
-      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      target.classList.add('doc-note-flash');
-      setTimeout(() => target.classList.remove('doc-note-flash'), 2400);
-    }
-  }
-}
-
-export function focusDocNote(noteId, targetFileId) {
-  pendingFocusNoteId = noteId;
-  setOpen(true);
-  // If this note belongs to the file already on screen, scroll immediately.
-  if (targetFileId != null && targetFileId === fileId) {
-    render();
-  }
 }
 
 function buildNote(note) {

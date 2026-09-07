@@ -371,7 +371,6 @@ body.dashboard .topbar .bar-center { display: none !important; }
 }
 .badge.missing { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
 .badge.note { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
-.doc-note-flash, .dash-note-flash { animation: search-flash 2.4s ease-out; }
 .tree-empty { color: var(--text-dim); padding: 14px 10px; font-size: 13px; }
 
 /* ---------- main ---------- */

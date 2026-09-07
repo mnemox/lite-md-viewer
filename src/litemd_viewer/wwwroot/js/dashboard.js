@@ -25,7 +25,6 @@ let pz = null;              // board pan/zoom controller (wheel-zoom + drag-pan)
 let wired = false;
 let topZ = 0;               // highest z-index in play (for bring-to-front)
 let openFile = null;        // app.js callback: open a document's file page from a group card
-let pendingFocusNoteId = null; // dashboard note to scroll to on next render
 
 // ---------- public API ----------
 
@@ -87,20 +86,6 @@ export async function renderDashboardNotes() {
   );
   for (const note of notes) board.appendChild(buildNote(note));
   for (const group of groups) board.appendChild(buildGroup(group));
-
-  if (pendingFocusNoteId != null) {
-    const target = board.querySelector(`.dash-note[data-id="${pendingFocusNoteId}"]`);
-    if (target) {
-      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      target.classList.add('dash-note-flash');
-      setTimeout(() => target.classList.remove('dash-note-flash'), 2400);
-    }
-    pendingFocusNoteId = null;
-  }
-}
-
-export function focusDashboardNote(noteId) {
-  pendingFocusNoteId = noteId;
 }
 
 // ---------- note rendering ----------

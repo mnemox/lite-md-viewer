@@ -31,6 +31,14 @@ def list_notes(session: Session = Depends(get_session)) -> list[NoteDto]:
     return [to_dto(n) for n in notes]
 
 
+@router.get("/notes/{note_id}", response_model=NoteDto)
+def get_note(note_id: int, session: Session = Depends(get_session)) -> NoteDto:
+    note = session.get(DashboardNote, note_id)
+    if note is None:
+        raise not_found()
+    return to_dto(note)
+
+
 @router.post("/notes", response_model=NoteDto)
 def create_note(
     req: CreateNoteRequest, session: Session = Depends(get_session)
@@ -53,7 +61,7 @@ def create_note(
     session.add(note)
     session.commit()
     session.refresh(note)
-    get_indexer().enqueue_note(note.id, "dashboard")
+    get_indexer().enqueue_note(note.id, "dashboard", delay=0.0)
     return to_dto(note)
 
 
@@ -79,7 +87,7 @@ def patch_note(
     note.updated_utc = utcnow()
 
     session.commit()
-    get_indexer().enqueue_note(note.id, "dashboard")
+    get_indexer().enqueue_note(note.id, "dashboard", delay=0.0)
     return to_dto(note)
 
 
