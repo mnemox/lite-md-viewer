@@ -55,9 +55,21 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _add_column_if_missing(conn, table: str, column: str, sql_type: str = "INTEGER") -> None:
+    """Idempotent ALTER TABLE for existing installs."""
+    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
+
+
 def init_db() -> None:
     """Create any missing tables and seed default settings."""
     Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        _add_column_if_missing(conn, "dashboard_notes", "width")
+        _add_column_if_missing(conn, "dashboard_notes", "height")
+        _add_column_if_missing(conn, "document_note_groups", "width")
+        _add_column_if_missing(conn, "document_note_groups", "height")
     with SessionLocal() as session:
         existing = set(session.scalars(select(Setting.key)).all())
         added = False

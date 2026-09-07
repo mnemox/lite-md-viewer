@@ -283,6 +283,7 @@ def list_groups(session: Session = Depends(get_session)) -> list[DocNoteGroupDto
             title=file.title,
             missing=not platform_fs.exists(file.full_path),
             x=group.x, y=group.y, z=group.z,
+            width=group.width, height=group.height,
             notes=group_notes,
         ))
     return result
@@ -305,6 +306,10 @@ def patch_group(
         group.y = req.y
     if req.z is not None:
         group.z = req.z
+    if req.width is not None:
+        group.width = req.width
+    if req.height is not None:
+        group.height = req.height
 
     session.commit()
     return Response(status_code=204)

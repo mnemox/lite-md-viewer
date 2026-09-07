@@ -76,6 +76,8 @@ class CreateNoteRequest(Camel):
     back_text: str = ""
     x: float = 0.0
     y: float = 0.0
+    width: int | None = None
+    height: int | None = None
 
 
 class PatchNoteRequest(Camel):
@@ -84,6 +86,8 @@ class PatchNoteRequest(Camel):
     x: float | None = None
     y: float | None = None
     z: int | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class CreateDocNoteRequest(Camel):
@@ -105,6 +109,8 @@ class PatchDocNoteGroupRequest(Camel):
     x: float | None = None
     y: float | None = None
     z: int | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class AddRelationRequest(Camel):
@@ -195,6 +201,8 @@ class NoteDto(Camel):
     x: float
     y: float
     z: int
+    width: int | None = None
+    height: int | None = None
 
 
 class NoteReferenceDto(Camel):
@@ -220,6 +228,8 @@ class DocNoteGroupDto(Camel):
     x: float
     y: float
     z: int
+    width: int | None = None
+    height: int | None = None
     notes: list[DocNoteDto]
 
 

@@ -20,6 +20,7 @@ def to_dto(note: DashboardNote) -> NoteDto:
         id=note.id, kind=note.kind,
         front_text=note.front_text, back_text=note.back_text,
         x=note.x, y=note.y, z=note.z,
+        width=note.width, height=note.height,
     )
 
 
@@ -55,6 +56,8 @@ def create_note(
         x=req.x,
         y=req.y,
         z=max((n.z for n in existing), default=0) + 1,
+        width=req.width,
+        height=req.height,
         created_utc=now,
         updated_utc=now,
     )
@@ -84,6 +87,10 @@ def patch_note(
         note.y = req.y
     if req.z is not None:
         note.z = req.z
+    if req.width is not None:
+        note.width = req.width
+    if req.height is not None:
+        note.height = req.height
     note.updated_utc = utcnow()
 
     session.commit()

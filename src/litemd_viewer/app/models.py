@@ -297,6 +297,8 @@ class DashboardNote(Base):
     x: Mapped[float] = mapped_column(Float, default=0.0)
     y: Mapped[float] = mapped_column(Float, default=0.0)
     z: Mapped[int] = mapped_column(Integer, default=0)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
@@ -357,6 +359,8 @@ class DocumentNoteGroup(Base):
     x: Mapped[float] = mapped_column(Float, default=0.0)
     y: Mapped[float] = mapped_column(Float, default=0.0)
     z: Mapped[int] = mapped_column(Integer, default=0)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class AiChatRole:

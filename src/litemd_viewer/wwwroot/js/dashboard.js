@@ -19,6 +19,12 @@ import { createPanZoom } from './panzoom.js';
 const $ = (id) => document.getElementById(id);
 const DRAG_THRESHOLD = 4;   // px moved before a press counts as a drag (vs a click)
 const NEW_OFFSET = 26;      // cascade step for stacking freshly-created notes
+const NOTE_DEFAULT_W = 240;
+const NOTE_DEFAULT_H = 210;
+const GROUP_DEFAULT_W = 260;
+const GROUP_DEFAULT_H = 340;
+const RESIZE_MIN_W = 160;
+const RESIZE_MIN_H = 120;
 
 let board = null;
 let pz = null;              // board pan/zoom controller (wheel-zoom + drag-pan)
@@ -98,6 +104,8 @@ function buildNote(note) {
   el.style.insetInlineStart = (note.x || 0) + 'px';
   el.style.insetBlockStart = (note.y || 0) + 'px';
   el.style.zIndex = String(note.z || 0);
+  el.style.width = (note.width || NOTE_DEFAULT_W) + 'px';
+  el.style.height = (note.height || NOTE_DEFAULT_H) + 'px';
   el.__note = note;
 
   const menuBtn = document.createElement('button');
@@ -124,6 +132,7 @@ function buildNote(note) {
   }
 
   wireNote(el, menuBtn);
+  makeResizable(el, { minW: RESIZE_MIN_W, minH: RESIZE_MIN_H, onDone: (w, h) => persistNoteSize(note, w, h) });
   return el;
 }
 
@@ -147,7 +156,7 @@ async function renderFace(faceEl, text) {
 
 function wireNote(el, menuBtn) {
   makeDraggable(el, {
-    skipSelector: '.dash-note-menu',   // the menu button is not a drag handle
+    skipSelector: '.dash-note-menu, .resize-handle',
     onClick: (e) => onNoteClick(el, e),
     onDrop: () => persistPosition(el),
   });
@@ -271,6 +280,8 @@ function buildGroup(group) {
   el.style.insetInlineStart = (group.x || 0) + 'px';
   el.style.insetBlockStart = (group.y || 0) + 'px';
   el.style.zIndex = String(group.z || 0);
+  el.style.width = (group.width || GROUP_DEFAULT_W) + 'px';
+  el.style.height = (group.height || GROUP_DEFAULT_H) + 'px';
   el.__group = group;
 
   const head = document.createElement('div');
@@ -305,11 +316,13 @@ function buildGroup(group) {
   el.appendChild(body);
 
   wireGroup(el, group);
+  makeResizable(el, { minW: RESIZE_MIN_W, minH: RESIZE_MIN_H, onDone: (w, h) => persistGroupSize(group, w, h) });
   return el;
 }
 
 function wireGroup(el, group) {
   makeDraggable(el, {
+    skipSelector: '.resize-handle',
     onClick: (e) => {
       const noteEl = e.target.closest('.dash-group-note');
       if (noteEl) openFullSize(group.title || 'Note', noteEl.__text);
@@ -325,6 +338,76 @@ async function persistGroupPosition(el) {
   group.x = x; group.y = y;
   try { await api.patchDocNoteGroup(group.fileId, { x, y, z }); }
   catch (e) { toast(e.message, 'error'); }
+}
+
+async function persistNoteSize(note, width, height) {
+  note.width = width; note.height = height;
+  try { await api.patchNote(note.id, { width, height }); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+async function persistGroupSize(group, width, height) {
+  group.width = width; group.height = height;
+  try { await api.patchDocNoteGroup(group.fileId, { width, height }); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
+function makeResizable(el, { minW, minH, onDone }) {
+  const handle = document.createElement('div');
+  handle.className = 'resize-handle';
+  handle.title = 'Resize';
+  handle.setAttribute('aria-label', 'Resize');
+  el.appendChild(handle);
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button != null && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = el.offsetWidth;
+    const startH = el.offsetHeight;
+    handle.setPointerCapture(e.pointerId);
+
+    let raf = 0;
+    const onMove = (ev) => {
+      const { scale } = pz ? pz.getTransform() : { scale: 1 };
+      const dx = (ev.clientX - startX) / scale;
+      const dy = (ev.clientY - startY) / scale;
+      const viewport = $('dashboardViewport');
+      const maxW = viewport ? viewport.clientWidth / scale : 2000;
+      const maxH = viewport ? viewport.clientHeight / scale : 2000;
+      const w = clamp(startW + dx, minW, maxW);
+      const h = clamp(startH + dy, minH, maxH);
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        el.style.width = w + 'px';
+        el.style.height = h + 'px';
+        if (el.__note) updateNoteOverflow(el);
+      });
+    };
+
+    const onUp = (ev) => {
+      cancelAnimationFrame(raf);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      handle.releasePointerCapture?.(ev.pointerId);
+      onDone(el.offsetWidth, el.offsetHeight);
+    };
+
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  });
+}
+
+function updateNoteOverflow(el) {
+  const faces = el.querySelectorAll('.dash-note-face');
+  for (const face of faces) {
+    face.classList.toggle('overflowing', face.scrollHeight > face.clientHeight + 1);
+  }
 }
 
 async function deleteNote(el) {
