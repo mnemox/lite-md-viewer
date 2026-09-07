@@ -141,7 +141,7 @@ export function viewNoteDialog(note, { fileTitle, onOpenFile } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.innerHTML = `
-    <div class="modal-card" style="width:min(800px,96vw); max-height:86vh; display:flex; flex-direction:column;">
+    <div class="modal-card resizable" style="width:min(800px,96vw); max-width:96vw; max-height:86vh; display:flex; flex-direction:column;">
       <div class="modal-head">
         <strong class="note-view-title" dir="auto"></strong>
         <button class="icon-btn" data-act="close" aria-label="Close">✕</button>

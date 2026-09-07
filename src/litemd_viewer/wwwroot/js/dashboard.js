@@ -439,7 +439,7 @@ function openFullSize(label, text) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.innerHTML = `
-    <div class="modal-card" style="width:min(900px,96vw)">
+    <div class="modal-card resizable" style="width:min(900px,96vw); max-width:96vw;">
       <div class="modal-head">
         <strong>${label}</strong>
         <button class="icon-btn" data-act="close" aria-label="Close">✕</button>

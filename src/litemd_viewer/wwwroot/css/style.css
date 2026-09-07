@@ -869,6 +869,11 @@ body.file-open.ai-enabled .ai-panel.open { display: flex; }
   box-shadow: var(--shadow);
   display: flex; flex-direction: column; overflow: hidden;
 }
+.modal-card.resizable {
+  resize: both;
+  min-width: 320px; min-height: 180px;
+  max-width: 96vw; max-height: 86vh;
+}
 .modal-head { display: flex; align-items: center; padding: 14px 16px; border-block-end: 1px solid var(--border); }
 .modal-head .icon-btn { margin-inline-start: auto; }
 .browse-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px 0; }
