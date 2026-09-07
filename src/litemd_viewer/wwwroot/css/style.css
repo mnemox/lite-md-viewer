@@ -776,12 +776,21 @@ body.file-open.ai-enabled .ai-panel.open { display: flex; }
   position: absolute;
   inset-block-end: 0;
   inset-inline-end: 0;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   cursor: se-resize;
   z-index: 4;
-  background: linear-gradient(135deg, transparent 7px, color-mix(in srgb, var(--text-dim) 40%, transparent) 7px);
-  border-start-start-radius: 8px;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0,
+    transparent 4px,
+    color-mix(in srgb, var(--text-dim) 70%, transparent) 4px,
+    color-mix(in srgb, var(--text-dim) 70%, transparent) 6px,
+    transparent 6px,
+    transparent 10px
+  );
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  border-start-start-radius: 10px;
 }
 .dash-group-note > :first-child { margin-block-start: 0; }
 .dash-group-note > :last-child { margin-block-end: 0; }
