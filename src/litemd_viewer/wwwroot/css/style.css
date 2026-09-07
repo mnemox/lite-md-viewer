@@ -771,27 +771,33 @@ body.file-open.ai-enabled .ai-panel.open { display: flex; }
   background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
 }
 
-/* mouse resize handle shared by dashboard sticky notes and document-note groups */
+/* mouse resize handle shared by dashboard sticky notes and document-note groups:
+   a bottom-right triangle of thick diagonal stripes (the familiar grip icon).
+   The stripes come from a mask so the colour follows the theme. */
 .resize-handle {
   position: absolute;
-  inset-block-end: 0;
-  inset-inline-end: 0;
-  width: 22px;
-  height: 22px;
+  inset-block-end: 2px;
+  inset-inline-end: 2px;
+  width: 18px;
+  height: 18px;
   cursor: se-resize;
   z-index: 4;
-  background: repeating-linear-gradient(
-    135deg,
-    transparent 0,
-    transparent 4px,
-    color-mix(in srgb, var(--text-dim) 70%, transparent) 4px,
-    color-mix(in srgb, var(--text-dim) 70%, transparent) 6px,
-    transparent 6px,
-    transparent 10px
-  );
+  opacity: .55;
+  background-color: var(--text);
   clip-path: polygon(100% 0, 100% 100%, 0 100%);
-  border-start-start-radius: 10px;
+  -webkit-mask-image: repeating-linear-gradient(
+    135deg,
+    #000 0, #000 3px,
+    transparent 3px, transparent 6px
+  );
+  mask-image: repeating-linear-gradient(
+    135deg,
+    #000 0, #000 3px,
+    transparent 3px, transparent 6px
+  );
 }
+.dash-note:hover .resize-handle,
+.dash-group:hover .resize-handle { opacity: .85; }
 .dash-group-note > :first-child { margin-block-start: 0; }
 .dash-group-note > :last-child { margin-block-end: 0; }
 
