@@ -9,6 +9,7 @@ import { popupMenu } from './tree.js';
 import { getSelectionInfo, showArrows, hideArrows, highlightNotes } from './noteRefs.js';
 
 const $ = (id) => document.getElementById(id);
+const OPEN_KEY = 'docNotesOpen';
 const COLLAPSE_KEY = 'docNotesCollapsed';
 const WIDTH_KEY = 'docNotesWidth';
 const MAX_REF_PREVIEW = 30;
@@ -18,6 +19,7 @@ let wired = false;
 let fileId = null;   // active document id (null when not viewing a file)
 let notes = [];      // the active document's notes
 let editingNote = null; // note currently being edited in the modal (null when adding)
+let pendingFocusNoteId = null; // note to scroll to on next render
 
 // ---------- public API ----------
 
@@ -69,14 +71,19 @@ export function initDocNotes() {
     }
   });
 
-  // Collapsible panel; the collapsed/expanded choice persists across reloads.
+  // Visibility is toggled from the topbar Notes button (like Ask). The panel is hidden by
+  // default and only appears when a file is open. A separate collapse toggle shrinks/expands
+  // the list once the panel is visible.
   const panel = $('docNotesPanel');
+  const notesBtn = $('notesBtn');
+  setOpen(localStorage.getItem(OPEN_KEY) === '1');
   setCollapsed(localStorage.getItem(COLLAPSE_KEY) === '1');
   $('docNotesToggle').onclick = () => {
     const now = !panel.classList.contains('collapsed');
     setCollapsed(now);
     localStorage.setItem(COLLAPSE_KEY, now ? '1' : '0');
   };
+  if (notesBtn) notesBtn.onclick = () => setOpen(!panel.classList.contains('open'));
 
   // Resizable width via the drag handle on the panel's left edge.
   const savedWidth = parseInt(localStorage.getItem(WIDTH_KEY), 10);
@@ -142,6 +149,11 @@ function render() {
   hideArrows();
   const count = $('docNotesCount');
   if (count) count.textContent = String(notes.length);
+  const btnCount = $('notesBtnCount');
+  if (btnCount) {
+    btnCount.textContent = String(notes.length);
+    btnCount.classList.toggle('hidden', notes.length === 0);
+  }
   list.innerHTML = '';
   if (notes.length === 0) {
     const empty = document.createElement('p');
@@ -153,6 +165,25 @@ function render() {
   }
   for (const note of notes) list.appendChild(buildNote(note));
   highlightNotes(notes);
+
+  if (pendingFocusNoteId != null) {
+    const target = list.querySelector(`.doc-note[data-id="${pendingFocusNoteId}"]`);
+    pendingFocusNoteId = null;
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.classList.add('doc-note-flash');
+      setTimeout(() => target.classList.remove('doc-note-flash'), 2400);
+    }
+  }
+}
+
+export function focusDocNote(noteId, targetFileId) {
+  pendingFocusNoteId = noteId;
+  setOpen(true);
+  // If this note belongs to the file already on screen, scroll immediately.
+  if (targetFileId != null && targetFileId === fileId) {
+    render();
+  }
 }
 
 function buildNote(note) {
@@ -291,8 +322,23 @@ async function deleteRef(note, refId) {
 }
 
 function ensureExpanded() {
+  if (!fileId) return;
+  setOpen(true);
   if ($('docNotesPanel').classList.contains('collapsed')) {
     setCollapsed(false);
     localStorage.setItem(COLLAPSE_KEY, '0');
+  }
+}
+
+function setOpen(on) {
+  const panel = $('docNotesPanel');
+  const btn = $('notesBtn');
+  const wasOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', on);
+  if (btn) btn.classList.toggle('active', on);
+  if (on) {
+    if (!wasOpen) localStorage.setItem(OPEN_KEY, '1');
+  } else {
+    if (wasOpen) localStorage.setItem(OPEN_KEY, '0');
   }
 }

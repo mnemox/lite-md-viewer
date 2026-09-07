@@ -1,13 +1,16 @@
-"""Keeps the vector index in step with the documents.
+"""Keeps the vector index in step with the documents and notes.
 
-The pipeline hangs off the content mirror's existing change detection. When a file's hash
-moves, its id is queued; a single worker then re-chunks the document, compares each passage
-against the hash stored on its `file_chunks` row, and only re-embeds the ones that actually
-changed. Because a chunk row's primary key is also the vector store's `doc_id`, a revised
-passage is updated in place instead of being deleted and re-added under a new id.
+The pipeline hangs off the content mirror's existing change detection for documents. When a
+file's hash moves, its id is queued; a single worker then re-chunks the document, compares
+each passage against the hash stored on its `file_chunks` row, and only re-embeds the ones
+that actually changed. Because a chunk row's primary key is also the vector store's `doc_id`,
+a revised passage is updated in place instead of being deleted and re-added under a new id.
 
-Writes to the `.hnsw` file are batched: it is saved once the queue has been quiet for a
-moment, not once per save, since saving rewrites the whole file.
+Notes (dashboard sticky notes and per-document notes) are indexed the same way, but they live
+in a separate vector collection so their chunk ids can never collide with file chunk ids.
+
+Writes to the `.hnsw` files are batched: each collection is saved once the queue has been
+quiet for a moment, not once per save, since saving rewrites the whole file.
 """
 
 from __future__ import annotations
@@ -25,7 +28,18 @@ from sqlalchemy import delete, select
 
 from .. import config
 from ..db import SessionLocal
-from ..models import FileChunk, FileContent, FileIndexState, ManagedFile, utcnow
+from ..models import (
+    DashboardNote,
+    DashboardNoteKind,
+    DocumentNote,
+    FileChunk,
+    FileContent,
+    FileIndexState,
+    ManagedFile,
+    NoteChunk,
+    NoteIndexState,
+    utcnow,
+)
 from ..schemas import SearchHitDto, SearchResultDto
 from . import platform_fs
 from .chunker import chunk_document, clean_markdown, sha256_hex
@@ -66,6 +80,19 @@ COLLECTION_SCHEMA: dict[str, Any] = {
     },
 }
 
+NOTE_COLLECTION_SCHEMA: dict[str, Any] = {
+    "note_id": "INTEGER",
+    "note_kind": "TEXT",
+    "file_id": "INTEGER",
+    "chunk_index": "INTEGER",
+    "text": "TEXT",
+    "embedding": {
+        "type": "VECTOR",
+        "dim": config.EMBED_DIM,
+        "metric": "cosine",
+    },
+}
+
 
 class Indexer:
     def __init__(self, embedder: Embedder | None = None) -> None:
@@ -74,6 +101,7 @@ class Indexer:
         self._store_error: str | None = None
 
         self._pending: dict[int, tuple[float, str]] = {}   # file_id -> (due, action)
+        self._note_pending: dict[tuple[int, str], tuple[float, str]] = {}  # (note_id, kind) -> (due, action)
         self._lock = threading.Lock()
 
         self._task: asyncio.Task | None = None
@@ -81,7 +109,7 @@ class Indexer:
 
         self._uncommitted = False
         self._last_write = 0.0
-        self._deletes_since_rebuild = 0
+        self._deletes_since_rebuild: dict[str, int] = {}
 
     # ------------------------------------------------------------------ store
     @property
@@ -94,6 +122,9 @@ class Indexer:
             store = LocalVectorDB(str(config.VECTOR_DIR))
             store.create_collection_if_missing(
                 config.VECTOR_COLLECTION, dict(COLLECTION_SCHEMA), max_elements=4096
+            )
+            store.create_collection_if_missing(
+                config.VECTOR_NOTES_COLLECTION, dict(NOTE_COLLECTION_SCHEMA), max_elements=4096
             )
             self._store = store
         except Exception as exc:  # noqa: BLE001
@@ -119,9 +150,32 @@ class Indexer:
                 self._pending.pop(file_id, None)
         return due
 
+    def enqueue_note(
+        self, note_id: int, note_kind: str, delay: float | None = None, force: bool = False
+    ) -> None:
+        due = time.monotonic() + (config.INDEX_DEBOUNCE_SECONDS if delay is None else delay)
+        with self._lock:
+            self._note_pending[(note_id, note_kind)] = (
+                due, ACTION_REINDEX if force else ACTION_INDEX
+            )
+
+    def remove_note(self, note_id: int, note_kind: str) -> None:
+        with self._lock:
+            self._note_pending[(note_id, note_kind)] = (time.monotonic(), ACTION_REMOVE)
+
+    def _take_due_notes(self) -> list[tuple[tuple[int, str], str]]:
+        now = time.monotonic()
+        with self._lock:
+            due = [
+                (key, action) for key, (at, action) in self._note_pending.items() if at <= now
+            ]
+            for key, _ in due:
+                self._note_pending.pop(key, None)
+        return due
+
     def pending_count(self) -> int:
         with self._lock:
-            return len(self._pending)
+            return len(self._pending) + len(self._note_pending)
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> None:
@@ -159,6 +213,10 @@ class Indexer:
                 for file_id, action in due:
                     await asyncio.to_thread(self._process, file_id, action)
 
+                note_due = self._take_due_notes()
+                for (note_id, note_kind), action in note_due:
+                    await asyncio.to_thread(self._process_note, note_id, note_kind, action)
+
                 # Flush the index file only after the writes have stopped for a moment.
                 if self._uncommitted and (
                     time.monotonic() - self._last_write >= config.INDEX_COMMIT_IDLE_SECONDS
@@ -174,9 +232,10 @@ class Indexer:
         if store is None:
             return
         try:
-            if self._deletes_since_rebuild >= REBUILD_AFTER_DELETES:
-                store.rebuild_index(config.VECTOR_COLLECTION, config.VECTOR_FIELD)
-                self._deletes_since_rebuild = 0
+            for collection, count in list(self._deletes_since_rebuild.items()):
+                if count >= REBUILD_AFTER_DELETES:
+                    store.rebuild_index(collection, config.VECTOR_FIELD)
+                    self._deletes_since_rebuild[collection] = 0
             store.commit()
             self._uncommitted = False
         except Exception:  # noqa: BLE001
@@ -184,13 +243,16 @@ class Indexer:
 
     # ------------------------------------------------------------------ reconcile
     def reconcile(self, force: bool = False) -> int:
-        """Queue every document whose indexed hash no longer matches its mirror.
+        """Queue every document and note whose indexed hash no longer matches its source.
 
-        `force` queues all of them. The mirror hash only tracks the *source* text, so it
-        cannot detect a change to the chunking or cleaning rules -- after those change, this
-        is the only way to rebuild. Re-embedding still happens per chunk, so unchanged
+        `force` queues all of them. The source hash only tracks the *source* text, so it
+        cannot detect a change to the chunking or cleaning rules -- after those change,
+        this is the only way to rebuild. Re-embedding still happens per chunk, so unchanged
         passages are skipped.
         """
+        return self._reconcile_files(force) + self._reconcile_notes(force)
+
+    def _reconcile_files(self, force: bool = False) -> int:
         queued = 0
         with SessionLocal() as session:
             mirrors = {
@@ -217,6 +279,38 @@ class Indexer:
             log.info("queued %d document(s) for indexing", queued)
         return queued
 
+    def _reconcile_notes(self, force: bool = False) -> int:
+        queued = 0
+        with SessionLocal() as session:
+            dashboard_notes = list(session.scalars(select(DashboardNote)).all())
+            document_notes = list(session.scalars(select(DocumentNote)).all())
+
+            note_sources: dict[tuple[int, str], str] = {}
+            for note in dashboard_notes:
+                note_sources[(note.id, "dashboard")] = _dashboard_note_source(note)
+            for note in document_notes:
+                note_sources[(note.id, "document")] = note.text or ""
+
+            states = {
+                (s.note_id, s.note_kind): s
+                for s in session.scalars(select(NoteIndexState)).all()
+            }
+
+            for (note_id, note_kind), source in note_sources.items():
+                state = states.get((note_id, note_kind))
+                source_hash = sha256_hex(source)
+                if force or state is None or state.content_hash != source_hash:
+                    self.enqueue_note(note_id, note_kind, delay=0.0, force=force)
+                    queued += 1
+
+            # Clean up notes that have been deleted.
+            for (note_id, note_kind) in set(states) - set(note_sources):
+                self.remove_note(note_id, note_kind)
+
+        if queued:
+            log.info("queued %d note(s) for indexing", queued)
+        return queued
+
     # ------------------------------------------------------------------ processing
     def _process(self, file_id: int, action: str) -> None:
         try:
@@ -229,14 +323,17 @@ class Indexer:
 
     def _remove(self, file_id: int) -> None:
         store = self.store
+        collection = config.VECTOR_COLLECTION
         with SessionLocal() as session:
             chunk_ids = list(session.scalars(
                 select(FileChunk.id).where(FileChunk.file_id == file_id)
             ).all())
             if chunk_ids and store is not None:
                 for chunk_id in chunk_ids:
-                    store.delete(config.VECTOR_COLLECTION, chunk_id)
-                self._deletes_since_rebuild += len(chunk_ids)
+                    store.delete(collection, chunk_id)
+                self._deletes_since_rebuild[collection] = (
+                    self._deletes_since_rebuild.get(collection, 0) + len(chunk_ids)
+                )
                 self._uncommitted = True
                 self._last_write = time.monotonic()
 
@@ -305,10 +402,13 @@ class Indexer:
             session.flush()  # assigns ids to the new rows
 
             stale_ids = [row.id for row in surplus]
+            collection = config.VECTOR_COLLECTION
             if stale_ids:
                 for chunk_id in stale_ids:
-                    store.delete(config.VECTOR_COLLECTION, chunk_id)
-                self._deletes_since_rebuild += len(stale_ids)
+                    store.delete(collection, chunk_id)
+                self._deletes_since_rebuild[collection] = (
+                    self._deletes_since_rebuild.get(collection, 0) + len(stale_ids)
+                )
                 session.execute(delete(FileChunk).where(FileChunk.id.in_(stale_ids)))
 
             pending = [
@@ -326,7 +426,7 @@ class Indexer:
                 else:
                     now = utcnow()
                     for (row, chunk, _), vector in zip(pending, vectors):
-                        store.upsert(config.VECTOR_COLLECTION, row.id, {
+                        store.upsert(collection, row.id, {
                             "file_id": file_id,
                             "chunk_index": chunk.index,
                             "text": chunk.text,
@@ -342,6 +442,157 @@ class Indexer:
                 state = FileIndexState(file_id=file_id)
                 session.add(state)
             state.content_hash = content_hash if error is None else ""
+            state.chunk_count = len(chunks)
+            state.indexed_utc = utcnow()
+            state.error = error
+
+            session.commit()
+
+    def _process_note(self, note_id: int, note_kind: str, action: str) -> None:
+        try:
+            if action == ACTION_REMOVE:
+                self._remove_note(note_id, note_kind)
+            else:
+                self._index_note(note_id, note_kind, force=action == ACTION_REINDEX)
+        except Exception:  # noqa: BLE001
+            log.exception("indexing failed for note %s/%s", note_kind, note_id)
+
+    def _remove_note(self, note_id: int, note_kind: str) -> None:
+        store = self.store
+        collection = config.VECTOR_NOTES_COLLECTION
+        with SessionLocal() as session:
+            chunk_ids = list(session.scalars(
+                select(NoteChunk.id).where(
+                    NoteChunk.note_id == note_id, NoteChunk.note_kind == note_kind
+                )
+            ).all())
+            if chunk_ids and store is not None:
+                for chunk_id in chunk_ids:
+                    store.delete(collection, chunk_id)
+                self._deletes_since_rebuild[collection] = (
+                    self._deletes_since_rebuild.get(collection, 0) + len(chunk_ids)
+                )
+                self._uncommitted = True
+                self._last_write = time.monotonic()
+
+            session.execute(
+                delete(NoteChunk).where(
+                    NoteChunk.note_id == note_id, NoteChunk.note_kind == note_kind
+                )
+            )
+            session.execute(
+                delete(NoteIndexState).where(
+                    NoteIndexState.note_id == note_id, NoteIndexState.note_kind == note_kind
+                )
+            )
+            session.commit()
+
+    def _index_note(self, note_id: int, note_kind: str, force: bool = False) -> None:
+        store = self.store
+        if store is None:
+            return
+
+        with SessionLocal() as session:
+            if note_kind == "dashboard":
+                note = session.get(DashboardNote, note_id)
+            else:
+                note = session.get(DocumentNote, note_id)
+            if note is None:
+                self._remove_note(note_id, note_kind)
+                return
+
+            source_text, file_id = _note_source(note, note_kind)
+            source_hash = sha256_hex(source_text)
+
+            state = session.get(NoteIndexState, (note_id, note_kind))
+            if (
+                not force
+                and state is not None
+                and state.content_hash == source_hash
+                and not state.error
+            ):
+                return  # already up to date
+
+            chunks = chunk_document(source_text)
+            existing = {
+                row.chunk_index: row
+                for row in session.scalars(
+                    select(NoteChunk).where(
+                        NoteChunk.note_id == note_id, NoteChunk.note_kind == note_kind
+                    )
+                ).all()
+            }
+
+            # Notes are embedded as-is; a document note is already tied to its file in the
+            # stored metadata, so prepending a title would only add noise.
+            inputs = [c.text for c in chunks]
+
+            rows: list[tuple[NoteChunk, bool]] = []
+            for chunk, embed_input in zip(chunks, inputs):
+                embed_hash = sha256_hex(embed_input)
+                row = existing.pop(chunk.index, None)
+                if row is None:
+                    row = NoteChunk(
+                        note_id=note_id, note_kind=note_kind, file_id=file_id,
+                        chunk_index=chunk.index,
+                    )
+                    session.add(row)
+                    changed = True
+                else:
+                    changed = row.content_hash != embed_hash or row.embedded_utc is None
+                row.file_id = file_id
+                row.text = chunk.text
+                row.content_hash = embed_hash
+                rows.append((row, changed))
+
+            surplus = list(existing.values())
+            session.flush()  # assigns ids to new rows
+
+            collection = config.VECTOR_NOTES_COLLECTION
+            stale_ids = [row.id for row in surplus]
+            if stale_ids:
+                for chunk_id in stale_ids:
+                    store.delete(collection, chunk_id)
+                self._deletes_since_rebuild[collection] = (
+                    self._deletes_since_rebuild.get(collection, 0) + len(stale_ids)
+                )
+                session.execute(
+                    delete(NoteChunk).where(NoteChunk.id.in_(stale_ids))
+                )
+
+            pending = [
+                (row, chunk, text)
+                for (row, changed), chunk, text in zip(rows, chunks, inputs) if changed
+            ]
+            error: str | None = None
+
+            if pending:
+                vectors = self.embedder.embed_documents([text for _, _, text in pending])
+                if vectors is None:
+                    error = self.embedder.last_error or "embedding unavailable"
+                    for row, _, _ in pending:
+                        row.embedded_utc = None
+                else:
+                    now = utcnow()
+                    for (row, chunk, _), vector in zip(pending, vectors):
+                        store.upsert(collection, row.id, {
+                            "note_id": note_id,
+                            "note_kind": note_kind,
+                            "file_id": file_id,
+                            "chunk_index": chunk.index,
+                            "text": chunk.text,
+                            "embedding": vector,
+                        })
+                        row.embedded_utc = now
+
+            if pending or stale_ids:
+                self._uncommitted = True
+                self._last_write = time.monotonic()
+
+            if state is None:
+                state = NoteIndexState(note_id=note_id, note_kind=note_kind)
+                session.add(state)
+            state.content_hash = source_hash if error is None else ""
             state.chunk_count = len(chunks)
             state.indexed_utc = utcnow()
             state.error = error
@@ -373,13 +624,11 @@ class Indexer:
     ) -> SearchResultDto:
         """Search indexed passages.
 
-        Unscoped, this returns at most `k` *documents*. Given a `file_id` it searches only
-        that document and returns at most `k` of its *sections*, which is what the reader
-        wants once they are already inside a document: a list of the places to jump to.
+        "vector" is pure nearest-neighbour, "text" is FTS only, and "hybrid" (the default)
+        fuses the two so exact keyword matches and paraphrases both surface.
 
-        Either way retrieval works on passages and the passages are then collapsed, so more
-        of them than `k` are fetched -- otherwise one long document, or one long section,
-        could crowd out every other result.
+        Without `fileId` a hit is a document or a note; with it a hit is a section of that
+        one document, which is what a reader already inside a document wants to jump between.
         """
         store = self.store
         cleaned = (query or "").strip()
@@ -387,102 +636,205 @@ class Indexer:
             return SearchResultDto(query=cleaned, mode=mode, hits=[])
 
         depth = min(k * PASSAGE_OVERFETCH, MAX_PASSAGE_CANDIDATES)
-        filters = None if file_id is None else {"file_id": int(file_id)}
-        ranked, mode = self._retrieve(cleaned, depth, mode, filters)
-        if not ranked:
-            return SearchResultDto(query=cleaned, mode=mode, hits=[])
+        if file_id is None:
+            file_ranked, used_mode = self._retrieve_collection(
+                config.VECTOR_COLLECTION, cleaned, depth, mode, None
+            )
+            note_ranked, _ = self._retrieve_collection(
+                config.VECTOR_NOTES_COLLECTION, cleaned, depth, mode, None
+            )
+            ranked = _merge_ranked(file_ranked, note_ranked)
+            hits = self._document_hits(ranked, k)
+            return SearchResultDto(query=cleaned, mode=used_mode, hits=hits)
 
-        hits = (
-            self._document_hits(ranked, k) if file_id is None
-            else self._section_hits(int(file_id), cleaned, ranked, k)
+        filters = {"file_id": int(file_id)}
+        ranked, used_mode = self._retrieve_collection(
+            config.VECTOR_COLLECTION, cleaned, depth, mode, filters
         )
-        return SearchResultDto(query=cleaned, mode=mode, hits=hits)
+        if not ranked:
+            return SearchResultDto(query=cleaned, mode=used_mode, hits=[])
+
+        hits = self._section_hits(int(file_id), cleaned, ranked, k)
+        return SearchResultDto(query=cleaned, mode=used_mode, hits=hits)
 
     def _retrieve(
         self, query: str, depth: int, mode: str, filters: dict | None
     ) -> tuple[list[tuple[dict, float]], str]:
-        """Fetch and fuse the candidate passages. Returns them with the mode actually used."""
+        """Fetch and fuse the candidate passages from the file collection."""
+        return self._retrieve_collection(
+            config.VECTOR_COLLECTION, query, depth, mode, filters
+        )
+
+    def _retrieve_collection(
+        self,
+        collection: str,
+        query: str,
+        depth: int,
+        mode: str,
+        filters: dict | None,
+    ) -> tuple[list[tuple[dict, float]], str]:
+        """Fetch and fuse the candidate passages from a single collection."""
         store = self.store
         vector_rows: list[dict] = []
         text_rows: list[dict] = []
+        used_mode = mode
 
         if mode in ("vector", "hybrid"):
             vector = self.embedder.embed_query(query)
             if vector is not None:
                 try:
                     vector_rows = store.query(
-                        config.VECTOR_COLLECTION, vector=vector,
+                        collection, vector=vector,
                         vector_field=config.VECTOR_FIELD, k=depth, filters=filters,
                     )
                 except Exception:  # noqa: BLE001
-                    log.exception("vector search failed")
+                    log.exception("vector search failed in %s", collection)
             elif mode == "vector":
-                mode = "text"  # no model: degrade rather than return nothing
+                used_mode = "text"  # no model: degrade rather than return nothing
 
-        if mode in ("text", "hybrid"):
+        if used_mode in ("text", "hybrid"):
             try:
                 text_rows = store.query(
-                    config.VECTOR_COLLECTION, text=_fts_query(query), k=depth,
+                    collection, text=_fts_query(query), k=depth,
                     filters=filters,
                 )
             except Exception:  # noqa: BLE001
-                log.debug("text search failed", exc_info=True)
+                log.debug("text search failed in %s", collection, exc_info=True)
 
-        return _fuse(vector_rows, text_rows), mode
+        return _fuse(vector_rows, text_rows), used_mode
 
     def _document_hits(self, ranked: list[tuple[dict, float]], k: int) -> list[SearchHitDto]:
-        # `ranked` is already best-first, so the first passage seen for a document is its
-        # best one. Counting continues past the `k`th document so the tally is complete.
-        best: dict[int, tuple[dict, float]] = {}
-        matched: dict[int, int] = {}
-        order: list[int] = []
+        # `ranked` is already best-first, so the first passage seen for a document or note
+        # is its best one. Counting continues past the `k`th item so the tally is complete.
+        best: dict[tuple[str, int, str], tuple[dict, float]] = {}
+        matched: dict[tuple[str, int, str], int] = {}
+        order: list[tuple[str, int, str]] = []
+
         for row, score in ranked:
-            if row.get("file_id") is None:
-                continue
-            file_id = int(row["file_id"])
-            matched[file_id] = matched.get(file_id, 0) + 1
-            if file_id not in best:
-                best[file_id] = (row, score)
-                order.append(file_id)
+            note_kind = row.get("note_kind")
+            if note_kind:
+                key = ("note", int(row["note_id"]), str(note_kind))
+            else:
+                key = ("file", int(row["file_id"]), "")
+            matched[key] = matched.get(key, 0) + 1
+            if key not in best:
+                best[key] = (row, score)
+                order.append(key)
 
         top = order[:k]
+
+        file_ids: set[int] = set()
+        doc_note_ids: set[int] = set()
+        dash_note_ids: set[int] = set()
+        file_chunk_ids: list[int] = []
+        note_chunk_ids: list[int] = []
+
+        for key in top:
+            kind, id, note_kind = key
+            row, _ = best[key]
+            if kind == "file":
+                file_ids.add(id)
+                file_chunk_ids.append(int(row["doc_id"]))
+            elif note_kind == "document":
+                doc_note_ids.add(id)
+                if row.get("file_id") is not None:
+                    file_ids.add(int(row["file_id"]))
+                note_chunk_ids.append(int(row["doc_id"]))
+            else:
+                dash_note_ids.add(id)
+                note_chunk_ids.append(int(row["doc_id"]))
 
         with SessionLocal() as session:
             files = {
                 f.id: f for f in session.scalars(
-                    select(ManagedFile).where(ManagedFile.id.in_(set(top)))
+                    select(ManagedFile).where(ManagedFile.id.in_(file_ids))
                 ).all()
             }
-            # The passage's offset into the document lives on the relational row, not in
-            # the vector store, so the viewer can scroll straight to the match.
-            offsets = {
+            doc_notes = {
+                n.id: n for n in session.scalars(
+                    select(DocumentNote).where(DocumentNote.id.in_(doc_note_ids))
+                ).all()
+            }
+            dash_notes = {
+                n.id: n for n in session.scalars(
+                    select(DashboardNote).where(DashboardNote.id.in_(dash_note_ids))
+                ).all()
+            }
+            # Offsets only matter for file chunks; note hits use the note id directly.
+            file_offsets = {
                 c.id: c.start_offset
                 for c in session.scalars(
-                    select(FileChunk).where(
-                        FileChunk.id.in_([int(best[f][0]["doc_id"]) for f in top])
-                    )
+                    select(FileChunk).where(FileChunk.id.in_(file_chunk_ids))
+                ).all()
+            }
+            note_rows = {
+                c.id: c
+                for c in session.scalars(
+                    select(NoteChunk).where(NoteChunk.id.in_(note_chunk_ids))
                 ).all()
             }
 
             hits: list[SearchHitDto] = []
-            for file_id in top:
-                file = files.get(file_id)
-                if file is None:
-                    continue  # an entry for a document that has since been removed
-                row, score = best[file_id]
+            for key in top:
+                kind, id, note_kind = key
+                row, score = best[key]
                 chunk_id = int(row["doc_id"])
-                hits.append(SearchHitDto(
-                    file_id=file.id,
-                    title=file.title,
-                    full_path=file.full_path,
-                    missing=not platform_fs.exists(file.full_path),
-                    chunk_id=chunk_id,
-                    chunk_index=int(row.get("chunk_index") or 0),
-                    start_offset=offsets.get(chunk_id, 0),
-                    snippet=_snippet(row.get("text") or ""),
-                    score=round(score, 6),
-                    passage_count=matched[file_id],
-                ))
+
+                if kind == "file":
+                    file = files.get(id)
+                    if file is None:
+                        continue
+                    hits.append(SearchHitDto(
+                        file_id=file.id,
+                        title=file.title,
+                        full_path=file.full_path,
+                        missing=not platform_fs.exists(file.full_path),
+                        chunk_id=chunk_id,
+                        chunk_index=int(row.get("chunk_index") or 0),
+                        start_offset=file_offsets.get(chunk_id, 0),
+                        snippet=_snippet(row.get("text") or ""),
+                        score=round(score, 6),
+                        passage_count=matched[key],
+                    ))
+                elif note_kind == "document":
+                    note = doc_notes.get(id)
+                    if note is None:
+                        continue
+                    file = files.get(note.file_id)
+                    if file is None:
+                        continue
+                    hits.append(SearchHitDto(
+                        file_id=file.id,
+                        note_id=note.id,
+                        note_kind="document",
+                        title=(f"{file.title} — Note" if file.title else "Note"),
+                        full_path=file.full_path,
+                        missing=not platform_fs.exists(file.full_path),
+                        chunk_id=chunk_id,
+                        chunk_index=int(row.get("chunk_index") or 0),
+                        start_offset=0,
+                        snippet=_snippet(row.get("text") or ""),
+                        score=round(score, 6),
+                        passage_count=matched[key],
+                    ))
+                else:  # dashboard
+                    note = dash_notes.get(id)
+                    if note is None:
+                        continue
+                    title = _dashboard_note_title(note)
+                    hits.append(SearchHitDto(
+                        note_id=note.id,
+                        note_kind="dashboard",
+                        title=title,
+                        full_path="",
+                        missing=False,
+                        chunk_id=chunk_id,
+                        chunk_index=int(row.get("chunk_index") or 0),
+                        start_offset=0,
+                        snippet=_snippet(row.get("text") or ""),
+                        score=round(score, 6),
+                        passage_count=matched[key],
+                    ))
 
         return hits
 
@@ -558,13 +910,18 @@ class Indexer:
         with SessionLocal() as session:
             indexed_files = len(list(session.scalars(select(FileIndexState.file_id)).all()))
             indexed_chunks = len(list(session.scalars(select(FileChunk.id)).all()))
+            indexed_notes = len(list(session.scalars(select(NoteIndexState.note_id)).all()))
+            indexed_note_chunks = len(list(session.scalars(select(NoteChunk.id)).all()))
         return {
             "enabled": config.EMBEDDING_ENABLED and self.store is not None,
             "model": self.embedder.model_name if config.EMBEDDING_ENABLED else None,
             "dimension": self.embedder.dimension,
             "indexed_files": indexed_files,
+            "indexed_notes": indexed_notes,
             "indexed_chunks": indexed_chunks,
-            "pending_files": self.pending_count(),
+            "indexed_note_chunks": indexed_note_chunks,
+            "pending_files": len(self._pending),
+            "pending_notes": len(self._note_pending),
             "ready": self.embedder.ready,
             "last_error": self._store_error or self.embedder.last_error,
         }
@@ -608,6 +965,41 @@ def _fuse(
         key=lambda kv: (-kv[1], kv[0] not in lexical, kv[0]),
     )
     return [(rows[doc_id], score) for doc_id, score in ordered]
+
+
+def _merge_ranked(
+    file_ranked: list[tuple[dict, float]], note_ranked: list[tuple[dict, float]]
+) -> list[tuple[dict, float]]:
+    """Reciprocal-rank fusion across the file and note collections.
+
+    Each collection is already ranked by distance. They use the same model and metric, so
+    their rank positions are comparable even if the raw distance scales differ slightly.
+    """
+    k = 60.0
+    scores: dict[tuple[str, int], float] = {}
+    rows: dict[tuple[str, int], dict] = {}
+    file_lexical: set[tuple[str, int]] = set()
+
+    def _key(row: dict) -> tuple[str, int]:
+        if row.get("note_kind"):
+            return ("note", int(row["doc_id"]))
+        return ("file", int(row["doc_id"]))
+
+    for rank, (row, _) in enumerate(file_ranked):
+        key = _key(row)
+        rows[key] = row
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+
+    for rank, (row, _) in enumerate(note_ranked):
+        key = _key(row)
+        rows[key] = row
+        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+
+    ordered = sorted(
+        scores.items(),
+        key=lambda kv: (-kv[1], kv[0] not in file_lexical, kv[0][1]),
+    )
+    return [(rows[key], score) for key, score in ordered]
 
 
 def _snippet(text: str, limit: int = 280) -> str:
@@ -746,6 +1138,27 @@ def _embed_input(title: str, text: str) -> str:
     """
     title = " ".join(title.split())[:config.EMBED_TITLE_MAX_CHARS].strip()
     return f"{title}\n\n{text}" if title else text
+
+
+def _note_source(note, note_kind: str) -> tuple[str, int | None]:
+    """Return the source text and parent file id for a note."""
+    if note_kind == "dashboard":
+        return _dashboard_note_source(note), None
+    return note.text or "", note.file_id
+
+
+def _dashboard_note_source(note: DashboardNote) -> str:
+    """The text that represents a dashboard note in the index."""
+    if note.kind == DashboardNoteKind.FLIP:
+        return f"{note.front_text or ''}\n\n{note.back_text or ''}".strip()
+    return note.front_text or ""
+
+
+def _dashboard_note_title(note: DashboardNote) -> str:
+    """A short title for a dashboard note search result."""
+    text = note.front_text or note.back_text or ""
+    first = text.strip().split("\n")[0].strip()
+    return first if first else "Dashboard note"
 
 
 # ---------------------------------------------------------------------- singleton

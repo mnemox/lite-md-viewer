@@ -12,6 +12,9 @@
 // on a run of words, which survives all three differences.
 
 import { api } from './api.js';
+import { focusDocNote } from './docnotes.js';
+import { focusDashboardNote } from './dashboard.js';
+import { navigate } from './router.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -78,13 +81,11 @@ export function initSearch(openFileFn, activeFileFn) {
     if (!$('searchWrap').contains(e.target)) close();
   });
 
-  // Ctrl/Cmd+K searches everything; Ctrl/Cmd+F searches the open document, which is what
-  // the browser's own Find would have been used for.
+  // Ctrl/Cmd+K opens the app's global search. Ctrl/Cmd+F is left for the browser's own
+  // Find so users can search any rendered text that the app does not index.
   document.addEventListener('keydown', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
-    const key = e.key.toLowerCase();
-    if (key === 'k') focusWithScope(e, ALL);
-    else if (key === 'f' && activeFile()) focusWithScope(e, DOC);
+    if (e.key.toLowerCase() === 'k') focusWithScope(e, ALL);
   });
 }
 
@@ -143,7 +144,7 @@ export function syncSearchScope() {
     pill.setAttribute('aria-selected', String(on));
   }
   if (file) {
-    bar.querySelector('[data-scope="doc"]').title = `Search inside “${file.title}” (Ctrl+F)`;
+    bar.querySelector('[data-scope="doc"]').title = `Search inside “${file.title}”`;
     bar.querySelector('[data-scope="all"]').title = 'Search every indexed document (Ctrl+K)';
   }
   // The placeholder is the other half of the signal: it says what Enter will search.
@@ -204,7 +205,8 @@ async function emptyMessage() {
   if (status.enabled === false) return 'Search is disabled: no embedding model is loaded.';
   if (status.lastError) return `Search is unavailable: ${status.lastError}`;
   if (status.ready === false) return 'The search index is still starting up — try again shortly.';
-  if (status.pendingFiles) return `Still indexing ${status.pendingFiles} document(s) — try again shortly.`;
+  const pending = (status.pendingFiles || 0) + (status.pendingNotes || 0);
+  if (pending) return `Still indexing ${pending} item(s) — try again shortly.`;
   if (scope === DOC) return `No matches for “${query}” in this document.`;
   return `No matches for “${query}”.`;
 }
@@ -216,13 +218,18 @@ function renderHits() {
 }
 
 function documentRow(h, i) {
+  const isNote = h.noteKind != null;
+  const noteBadge = isNote ? `<span class="badge note">${h.noteKind === 'dashboard' ? 'dashboard note' : 'note'}</span>` : '';
+  const title = escapeHtml(h.title) || (isNote ? 'Note' : 'Untitled');
+  const pathTitle = isNote ? (h.noteKind === 'dashboard' ? 'Dashboard note' : h.fullPath) : h.fullPath;
   return `
     <button class="search-hit${i === cursor ? ' active' : ''}" data-i="${i}"
-            role="option" aria-selected="${i === cursor}" title="${escapeHtml(h.fullPath)}">
+            role="option" aria-selected="${i === cursor}" title="${escapeHtml(pathTitle)}">
       <span class="search-hit-head">
-        <span class="search-hit-title">${escapeHtml(h.title)}</span>
+        <span class="search-hit-title">${title}</span>
         ${h.passageCount > 1 ? `<span class="search-hit-count">${h.passageCount} passages</span>` : ''}
         ${h.missing ? '<span class="badge missing">missing</span>' : ''}
+        ${noteBadge}
       </span>
       <span class="search-hit-snippet">${escapeHtml(h.snippet)}</span>
     </button>`;
@@ -306,12 +313,24 @@ async function go(hit) {
   close();
   $('searchInput').blur();
 
-  // A section hit belongs to the document already on screen: jump within it. Anything else
-  // is a request for the document itself, so open it and start at its beginning.
+  // A section hit belongs to the document already on screen: jump within it.
   if (scope === DOC && scopedTo === hit.fileId && activeFile()?.id === hit.fileId) {
     revealPassage(hit.snippet);
     return;
   }
+
+  // Note hits open their owning context rather than a bare file.
+  if (hit.noteKind === 'dashboard') {
+    focusDashboardNote(hit.noteId);
+    navigate({ name: 'notes' });
+    return;
+  }
+  if (hit.noteKind === 'document') {
+    focusDocNote(hit.noteId, hit.fileId);
+    await openFile(hit.fileId);
+    return;
+  }
+
   await openFile(hit.fileId);
   scrollToTop();
 }

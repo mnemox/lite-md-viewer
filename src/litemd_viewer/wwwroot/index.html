@@ -31,12 +31,13 @@
       <span id="fileStatus" class="badge"></span>
     </div>
     <div class="bar-center">
-      <div class="seg" role="tablist">
-        <button id="viewModeBtn" class="seg-btn active" role="tab">View</button>
-        <button id="editModeBtn" class="seg-btn" role="tab">Edit</button>
+      <div class="search-scope" role="tablist" aria-label="Document mode">
+        <button id="viewModeBtn" class="search-scope-pill active" type="button" role="tab" aria-selected="true">View</button>
+        <button id="editModeBtn" class="search-scope-pill" type="button" role="tab" aria-selected="false">Edit</button>
       </div>
       <button id="detailsBtn" class="btn" title="File details">Details</button>
       <button id="relationsBtn" class="btn" title="Document relations">Relations</button>
+      <button id="notesBtn" class="btn" title="Show document notes">Notes <span id="notesBtnCount" class="btn-badge hidden" aria-hidden="true">0</span></button>
       <button id="askBtn" class="btn" title="Ask a local model about this document">Ask</button>
     </div>
     <div class="bar-right">

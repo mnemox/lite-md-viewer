@@ -279,10 +279,11 @@ class SearchHitDto(Camel):
     """One match. The chunk fields describe its best-scoring passage.
 
     A hit is a whole document for an unscoped search, and one section of a document for a
-    search scoped to a single file.
+    search scoped to a single file. When `note_kind` is set the hit is a dashboard or
+    document note rather than a file.
     """
 
-    file_id: int
+    file_id: int | None = None
     title: str
     full_path: str
     missing: bool
@@ -296,6 +297,9 @@ class SearchHitDto(Camel):
     # The heading trail enclosing the passage, outermost first; empty above the first
     # heading. Only filled in by a search scoped to one document.
     section_path: list[str] = []
+    # Set only for note hits: the note id and its kind ('dashboard' or 'document').
+    note_id: int | None = None
+    note_kind: str | None = None
 
 
 class SearchResultDto(Camel):
@@ -309,8 +313,11 @@ class IndexStatusDto(Camel):
     model: str | None
     dimension: int
     indexed_files: int
+    indexed_notes: int
     indexed_chunks: int
+    indexed_note_chunks: int
     pending_files: int
+    pending_notes: int
     ready: bool
     last_error: str | None = None
 

@@ -18,7 +18,10 @@ from sqlalchemy import select
 
 from app import config
 from app.db import SessionLocal
-from app.models import FileChunk, FileContent, FileIndexState, ManagedFile, utcnow
+from app.models import (
+    DashboardNote, DashboardNoteKind, DocumentNote, FileChunk, FileContent,
+    FileIndexState, ManagedFile, NoteChunk, NoteIndexState, utcnow,
+)
 from app.services.chunker import sha256_hex
 from app.services.indexing import (
     Indexer, _fuse, _section_index, _section_matches, _section_path,
@@ -708,3 +711,94 @@ def _second_id(first_id: int) -> int:
     with SessionLocal() as session:
         ids = sorted(session.scalars(select(ManagedFile.id)).all())
     return next(i for i in ids if i != first_id)
+
+
+# ---------------------------------------------------------------------- note indexing
+def make_dashboard_note(text: str, flip_text: str | None = None) -> int:
+    with SessionLocal() as session:
+        note = DashboardNote(
+            kind=DashboardNoteKind.FLIP if flip_text is not None else DashboardNoteKind.NOTE,
+            front_text=text,
+            back_text=flip_text or "",
+            created_utc=utcnow(),
+            updated_utc=utcnow(),
+        )
+        session.add(note)
+        session.commit()
+        return note.id
+
+
+def make_document_note(file_id: int, text: str) -> int:
+    with SessionLocal() as session:
+        note = DocumentNote(
+            file_id=file_id, text=text, sort_order=1,
+            created_utc=utcnow(), updated_utc=utcnow(),
+        )
+        session.add(note)
+        session.commit()
+        return note.id
+
+
+def note_rows(note_id: int, kind: str) -> list[NoteChunk]:
+    with SessionLocal() as session:
+        return list(session.scalars(
+            select(NoteChunk)
+            .where(NoteChunk.note_id == note_id, NoteChunk.note_kind == kind)
+            .order_by(NoteChunk.chunk_index)
+        ).all())
+
+
+def note_vector_count(indexer: Indexer) -> int:
+    row = indexer.store.conn.execute(
+        "SELECT count FROM _vector_meta WHERE collection=? AND field=?",
+        (config.VECTOR_NOTES_COLLECTION, config.VECTOR_FIELD),
+    ).fetchone()
+    return row["count"] if row else 0
+
+
+def test_dashboard_note_is_indexed_and_searchable(indexer):
+    note_id = make_dashboard_note("A sticky note about **badgers**.")
+    indexer._index_note(note_id, "dashboard")
+
+    rows = note_rows(note_id, "dashboard")
+    assert len(rows) == 1
+    assert rows[0].embedded_utc is not None
+    assert note_vector_count(indexer) == 1
+    assert session_get(NoteIndexState, (note_id, "dashboard")) is not None
+
+    result = indexer.search("badgers", k=10, mode="vector")
+    assert any(h.note_id == note_id and h.note_kind == "dashboard" for h in result.hits)
+
+
+def test_document_note_is_indexed_and_searchable(indexer):
+    file_id = make_document("# Doc\n\nBody text here.\n", name="doc.md")
+    note_id = make_document_note(file_id, "A note about **badgers** in this document.")
+    indexer._index(file_id)
+    indexer._index_note(note_id, "document")
+
+    rows = note_rows(note_id, "document")
+    assert len(rows) == 1
+    assert rows[0].embedded_utc is not None
+    assert note_vector_count(indexer) == 1
+
+    result = indexer.search("badgers", k=10, mode="vector")
+    note_hits = [h for h in result.hits if h.note_id == note_id and h.note_kind == "document"]
+    assert note_hits
+    assert note_hits[0].file_id == file_id
+
+
+def test_removing_a_note_clears_its_chunks_and_vectors(indexer):
+    note_id = make_dashboard_note("Soon to be removed.")
+    indexer._index_note(note_id, "dashboard")
+    assert note_vector_count(indexer) == 1
+
+    indexer._remove_note(note_id, "dashboard")
+
+    assert note_rows(note_id, "dashboard") == []
+    assert note_vector_count(indexer) == 0
+    assert session_get(NoteIndexState, (note_id, "dashboard")) is None
+
+
+def session_get(model, key):
+    with SessionLocal() as session:
+        return session.get(model, key)

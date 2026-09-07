@@ -1,0 +1,10 @@
+Index dashboard and document notes for global search.
+
+Notes now live in their own vector collection, get re-embedded when created,
+updated or deleted, and appear alongside documents in the global search
+results. The search panel shows a note badge and navigates dashboard hits to
+the board and document hits to the file's notes panel.
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

@@ -127,6 +127,46 @@ class FileIndexState(Base):
     error: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class NoteChunk(Base):
+    """One embedded passage of a dashboard or document note.
+
+    `id` is the `doc_id` in the notes vector collection, just as `FileChunk.id` is for the
+    document collection. Notes live in their own collection so their ids cannot collide with
+    file chunk ids.
+    """
+
+    __tablename__ = "note_chunks"
+    __table_args__ = (
+        Index("ix_note_chunks_note", "note_kind", "note_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    note_id: Mapped[int] = mapped_column(Integer)
+    note_kind: Mapped[str] = mapped_column(String, default="")
+    file_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text, default="")
+    content_hash: Mapped[str] = mapped_column(String, default="")
+    embedded_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class NoteIndexState(Base):
+    """What the vector index currently holds for a note.
+
+    `content_hash` is a hash of the note text that was last indexed. Dashboard notes and
+    document notes share the same table and are distinguished by `note_kind`.
+    """
+
+    __tablename__ = "note_index_state"
+
+    note_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    note_kind: Mapped[str] = mapped_column(String, primary_key=True)
+    content_hash: Mapped[str] = mapped_column(String, default="")
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    indexed_utc: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class Graph(Base):
     """A connected group of documents owning their edges, companions and attachments."""
 

@@ -72,9 +72,15 @@ body {
 
 /* shrink controls to fit the slimmer 44px bar */
 .topbar .icon-btn { width: 32px; height: 32px; font-size: 16px; }
-.topbar .seg-btn  { padding: 4px 12px; }
 .topbar .btn      { padding: 5px 11px; }
 .topbar .btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.topbar .btn.active .btn-badge { background: var(--accent-contrast); color: var(--accent); }
+.btn-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-inline-start: 4px;
+  border-radius: 9px; background: var(--bg-elev-2); color: var(--text-dim);
+  font-size: 11px; font-weight: 600;
+}
 
 /* file controls are hidden until a file is open */
 #fileTitle, #fileStatus, .topbar .bar-center { display: none; }
@@ -111,6 +117,7 @@ body.dashboard .topbar .bar-center { display: none !important; }
 }
 .search-scope-pill:hover { color: var(--text); }
 .search-scope-pill.active { background: var(--bg); color: var(--text); box-shadow: var(--shadow); }
+.search-scope-pill:disabled { opacity: .4; cursor: not-allowed; }
 
 .search-input {
   width: clamp(130px, 24vw, 250px);
@@ -363,6 +370,8 @@ body.dashboard .topbar .bar-center { display: none !important; }
   color: var(--text-dim);
 }
 .badge.missing { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.badge.note { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.doc-note-flash, .dash-note-flash { animation: search-flash 2.4s ease-out; }
 .tree-empty { color: var(--text-dim); padding: 14px 10px; font-size: 13px; }
 
 /* ---------- main ---------- */
@@ -562,7 +571,8 @@ body.file-open .doc-fab-wrap { display: block; }
   border-radius: 12px; box-shadow: var(--shadow);
   z-index: 20; display: none; flex-direction: column; overflow: hidden;
 }
-body.file-open .doc-notes-panel { display: flex; }
+/* shown via the topbar Notes button; hidden by default even when a file is open */
+body.file-open .doc-notes-panel.open { display: flex; }
 .doc-notes-panel.collapsed { height: auto; }
 
 /* drag handle on the panel's leading (left) edge to resize its width */

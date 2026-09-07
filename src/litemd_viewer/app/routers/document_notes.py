@@ -30,6 +30,7 @@ from ..schemas import (
     PatchDocNoteRequest,
 )
 from ..services import platform_fs
+from ..services.indexing import get_indexer
 
 router = APIRouter(prefix="/api/files/{file_id}/notes", tags=["document-notes"])
 groups = APIRouter(prefix="/api/dashboard/document-notes", tags=["document-notes"])
@@ -99,6 +100,8 @@ def create_note(
     )
     session.add(note)
     session.commit()
+    session.refresh(note)
+    get_indexer().enqueue_note(note.id, "document")
     return to_dto(note)
 
 
@@ -123,6 +126,7 @@ def patch_note(
     note.updated_utc = utcnow()
 
     session.commit()
+    get_indexer().enqueue_note(note.id, "document")
     return to_dto(note)
 
 
@@ -153,6 +157,7 @@ def delete_note(
             session.delete(group)
 
     session.commit()
+    get_indexer().remove_note(note_id, "document")
     return Response(status_code=204)
 
 

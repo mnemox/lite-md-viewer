@@ -228,7 +228,9 @@ function applyMode(mode) {
   state.mode = mode;
   const view = mode === 'view';
   $('viewModeBtn').classList.toggle('active', view);
+  $('viewModeBtn').setAttribute('aria-selected', view ? 'true' : 'false');
   $('editModeBtn').classList.toggle('active', !view);
+  $('editModeBtn').setAttribute('aria-selected', !view ? 'true' : 'false');
   $('saveBtn').classList.toggle('hidden', view);
   $('viewer').classList.toggle('hidden', !view);
   $('editor').classList.toggle('hidden', view);

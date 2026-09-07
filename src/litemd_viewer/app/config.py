@@ -47,6 +47,7 @@ INDEX_COMMIT_IDLE_SECONDS = 2.0
 EMBED_MODEL = os.environ.get("LITEMD_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
 EMBED_DIM = int(os.environ.get("LITEMD_EMBED_DIM", "384"))
 VECTOR_COLLECTION = "doc_chunks"
+VECTOR_NOTES_COLLECTION = "note_chunks"
 VECTOR_FIELD = "embedding"
 
 # Chunking, measured in characters of *cleaned* text, with overlap so a passage spanning a

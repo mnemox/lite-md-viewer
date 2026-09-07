@@ -10,6 +10,7 @@ from ..db import get_session
 from ..errors import not_found
 from ..models import DashboardNote, DashboardNoteKind, utcnow
 from ..schemas import CreateNoteRequest, NoteDto, PatchNoteRequest
+from ..services.indexing import get_indexer
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -51,6 +52,8 @@ def create_note(
     )
     session.add(note)
     session.commit()
+    session.refresh(note)
+    get_indexer().enqueue_note(note.id, "dashboard")
     return to_dto(note)
 
 
@@ -76,6 +79,7 @@ def patch_note(
     note.updated_utc = utcnow()
 
     session.commit()
+    get_indexer().enqueue_note(note.id, "dashboard")
     return to_dto(note)
 
 
@@ -86,4 +90,5 @@ def delete_note(note_id: int, session: Session = Depends(get_session)) -> Respon
         raise not_found()
     session.delete(note)
     session.commit()
+    get_indexer().remove_note(note_id, "dashboard")
     return Response(status_code=204)
