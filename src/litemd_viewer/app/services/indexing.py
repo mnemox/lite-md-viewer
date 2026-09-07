@@ -419,20 +419,25 @@ class Indexer:
 
             if pending:
                 vectors = self.embedder.embed_documents([text for _, _, text in pending])
+                error = self.embedder.last_error if vectors is None else None
                 if vectors is None:
-                    error = self.embedder.last_error or "embedding unavailable"
-                    for row, _, _ in pending:
-                        row.embedded_utc = None
-                else:
-                    now = utcnow()
-                    for (row, chunk, _), vector in zip(pending, vectors):
-                        store.upsert(collection, row.id, {
-                            "file_id": file_id,
-                            "chunk_index": chunk.index,
-                            "text": chunk.text,
-                            "embedding": vector,
-                        })
+                    vectors = [None] * len(pending)
+                now = utcnow()
+                for (row, chunk, text), vector in zip(pending, vectors):
+                    doc = {
+                        "file_id": file_id,
+                        "chunk_index": chunk.index,
+                        "text": chunk.text,
+                    }
+                    if vector is not None:
+                        doc["embedding"] = vector
                         row.embedded_utc = now
+                        store.upsert(collection, row.id, doc)
+                    else:
+                        row.embedded_utc = None
+                        # Remove any stale vector so the text-only row is what search finds.
+                        store.delete(collection, row.id)
+                        store.add(collection, doc, doc_id=row.id)
 
             if pending or stale_ids:
                 self._uncommitted = True
@@ -568,22 +573,26 @@ class Indexer:
 
             if pending:
                 vectors = self.embedder.embed_documents([text for _, _, text in pending])
+                error = self.embedder.last_error if vectors is None else None
                 if vectors is None:
-                    error = self.embedder.last_error or "embedding unavailable"
-                    for row, _, _ in pending:
-                        row.embedded_utc = None
-                else:
-                    now = utcnow()
-                    for (row, chunk, _), vector in zip(pending, vectors):
-                        store.upsert(collection, row.id, {
-                            "note_id": note_id,
-                            "note_kind": note_kind,
-                            "file_id": file_id,
-                            "chunk_index": chunk.index,
-                            "text": chunk.text,
-                            "embedding": vector,
-                        })
+                    vectors = [None] * len(pending)
+                now = utcnow()
+                for (row, chunk, text), vector in zip(pending, vectors):
+                    doc = {
+                        "note_id": note_id,
+                        "note_kind": note_kind,
+                        "file_id": file_id,
+                        "chunk_index": chunk.index,
+                        "text": chunk.text,
+                    }
+                    if vector is not None:
+                        doc["embedding"] = vector
                         row.embedded_utc = now
+                        store.upsert(collection, row.id, doc)
+                    else:
+                        row.embedded_utc = None
+                        store.delete(collection, row.id)
+                        store.add(collection, doc, doc_id=row.id)
 
             if pending or stale_ids:
                 self._uncommitted = True
