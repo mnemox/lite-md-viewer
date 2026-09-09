@@ -106,9 +106,21 @@ export const api = {
 
   // Boards screen
   boards: () => req('GET', '/api/boards'),
+  board: (id) => req('GET', `/api/boards/${id}`),
   createBoard: (body) => req('POST', '/api/boards', body),
   patchBoard: (id, patch) => req('PATCH', `/api/boards/${id}`, patch),
   deleteBoard: (id) => req('DELETE', `/api/boards/${id}`),
+
+  // A board's lists (columns) and their cards, à la Trello
+  boardLists: (boardId) => req('GET', `/api/boards/${boardId}/lists`),
+  createList: (boardId, name) => req('POST', `/api/boards/${boardId}/lists`, { name }),
+  patchList: (boardId, listId, patch) => req('PATCH', `/api/boards/${boardId}/lists/${listId}`, patch),
+  deleteList: (boardId, listId) => req('DELETE', `/api/boards/${boardId}/lists/${listId}`),
+  reorderLists: (boardId, orderedIds) => req('PUT', `/api/boards/${boardId}/lists/reorder`, { orderedIds }),
+  createCard: (boardId, listId, text) => req('POST', `/api/boards/${boardId}/lists/${listId}/cards`, { text }),
+  patchCard: (boardId, listId, cardId, patch) => req('PATCH', `/api/boards/${boardId}/lists/${listId}/cards/${cardId}`, patch),
+  deleteCard: (boardId, listId, cardId) => req('DELETE', `/api/boards/${boardId}/lists/${listId}/cards/${cardId}`),
+  reorderCards: (boardId, listId, orderedIds) => req('PUT', `/api/boards/${boardId}/lists/${listId}/cards/reorder`, { orderedIds }),
 
   // Local analysis: chat over one open document, answered by a local Ollama model.
   aiStatus: () => req('GET', '/api/ai/status'),

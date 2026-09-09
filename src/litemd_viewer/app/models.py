@@ -378,6 +378,55 @@ class Board(Base):
     created_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
+    lists: Mapped[list["BoardList"]] = relationship(
+        back_populates="board",
+        cascade="all, delete-orphan",
+        order_by="BoardList.sort_order",
+        lazy="selectin",
+    )
+
+
+class BoardList(Base):
+    """A list (column) that belongs to a board, à la Trello."""
+
+    __tablename__ = "board_lists"
+    __table_args__ = (Index("ix_board_lists_board_id", "board_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    board_id: Mapped[int] = mapped_column(
+        ForeignKey("boards.id", ondelete="CASCADE")
+    )
+    name: Mapped[str] = mapped_column(String, default="")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    board: Mapped["Board"] = relationship(back_populates="lists")
+    cards: Mapped[list["BoardCard"]] = relationship(
+        back_populates="list",
+        cascade="all, delete-orphan",
+        order_by="BoardCard.sort_order",
+        lazy="selectin",
+    )
+
+
+class BoardCard(Base):
+    """A card inside a board list. Its text is the card face."""
+
+    __tablename__ = "board_cards"
+    __table_args__ = (Index("ix_board_cards_list_id", "list_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    list_id: Mapped[int] = mapped_column(
+        ForeignKey("board_lists.id", ondelete="CASCADE")
+    )
+    text: Mapped[str] = mapped_column(Text, default="")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    list: Mapped["BoardList"] = relationship(back_populates="cards")
+
 
 class AiChatRole:
     USER = "user"

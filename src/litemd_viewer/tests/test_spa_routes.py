@@ -21,7 +21,7 @@ def local_client() -> TestClient:
 
 @pytest.mark.parametrize(
     "path",
-    ["/", "/notes", "/files/1", "/files/1/edit", "/files/12345", "/unknown-route"],
+    ["/", "/notes", "/boards", "/boards/1", "/files/1", "/files/1/edit", "/files/12345", "/unknown-route"],
 )
 def test_client_routes_serve_the_app_shell(path):
     response = local_client().get(path)
