@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 def to_dto(note: DashboardNote) -> NoteDto:
     return NoteDto(
         id=note.id, kind=note.kind,
-        front_text=note.front_text, back_text=note.back_text,
+        front_text=note.front_text, back_text=note.back_text, color=note.color,
         x=note.x, y=note.y, z=note.z,
         width=note.width, height=note.height,
     )
@@ -53,6 +53,7 @@ def create_note(
         kind=kind,
         front_text=req.front_text or "",
         back_text=req.back_text or "",
+        color=req.color,
         x=req.x,
         y=req.y,
         z=max((n.z for n in existing), default=0) + 1,
@@ -81,6 +82,8 @@ def patch_note(
         note.front_text = req.front_text
     if req.back_text is not None:
         note.back_text = req.back_text
+    if req.color is not None:
+        note.color = req.color
     if req.x is not None:
         note.x = req.x
     if req.y is not None:

@@ -15,6 +15,7 @@ import { renderMarkdown } from './render.js';
 import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
+import { renderColorSwatches, contrastColor } from './colors.js';
 
 const $ = (id) => document.getElementById(id);
 const DRAG_THRESHOLD = 4;   // px moved before a press counts as a drag (vs a click)
@@ -131,9 +132,21 @@ function buildNote(note) {
     renderFace(front, note.frontText);
   }
 
+  applyNoteColor(el, note.color);
   wireNote(el, menuBtn);
   makeResizable(el, { minW: RESIZE_MIN_W, minH: RESIZE_MIN_H, onDone: (w, h) => persistNoteSize(note, w, h) });
   return el;
+}
+
+function applyNoteColor(el, color) {
+  const textColor = color ? contrastColor(color) : '';
+  el.style.color = textColor;
+  el.style.setProperty('--note-bg', color || 'var(--bg-elev)');
+  for (const face of el.querySelectorAll('.dash-note-face')) {
+    face.style.backgroundColor = color || '';
+    face.style.color = textColor;
+    face.style.setProperty('--note-fade-color', color || 'var(--bg-elev)');
+  }
 }
 
 function faceEl(side) {
@@ -438,6 +451,8 @@ function openEditor({ kind, el = null }) {
       </div>
     </div>`;
 
+  let selectedColor = note?.color || null;
+
   overlay.innerHTML = `
     <div class="modal-card note-edit-card" style="width:min(860px,96vw)">
       <div class="modal-head">
@@ -445,6 +460,10 @@ function openEditor({ kind, el = null }) {
         <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
       </div>
       <div class="note-edit-body">
+        <div class="note-edit-row">
+          <span class="note-edit-label">Background color</span>
+          <div class="color-swatches" id="noteColorSwatches"></div>
+        </div>
         ${row(flip ? 'Front' : '', 'noteFront', '')}
         ${flip ? row('Back', 'noteBack', '') : ''}
       </div>
@@ -460,6 +479,7 @@ function openEditor({ kind, el = null }) {
     frontSrc.value = note.frontText || '';
     if (backSrc) backSrc.value = note.backText || '';
   }
+  renderColorSwatches(overlay.querySelector('#noteColorSwatches'), selectedColor, (c) => { selectedColor = c; });
 
   // Live preview (debounced), mirroring the main editor.
   const bindPreview = (src, prevId) => {
@@ -481,13 +501,14 @@ function openEditor({ kind, el = null }) {
     if (!frontText.trim() && !backText.trim()) { toast('Nothing to save', 'error'); return; }
     try {
       if (editing) {
-        await api.patchNote(note.id, { frontText, backText });
-        note.frontText = frontText; note.backText = backText;
+        await api.patchNote(note.id, { frontText, backText, color: selectedColor });
+        note.frontText = frontText; note.backText = backText; note.color = selectedColor;
         refreshFaces(el);
+        applyNoteColor(el, note.color);
         toast('Note updated', 'ok');
       } else {
         const pos = nextPosition();
-        const dto = await api.createNote({ kind, frontText, backText, x: pos.x, y: pos.y });
+        const dto = await api.createNote({ kind, frontText, backText, color: selectedColor, x: pos.x, y: pos.y });
         topZ = Math.max(topZ, dto.z || 0);
         board.appendChild(buildNote(dto));
         toast('Note added', 'ok');

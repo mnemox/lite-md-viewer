@@ -71,6 +71,7 @@ def init_db() -> None:
         _add_column_if_missing(conn, "document_note_groups", "width")
         _add_column_if_missing(conn, "document_note_groups", "height")
         _add_column_if_missing(conn, "boards", "color", "VARCHAR(7)")
+        _add_column_if_missing(conn, "dashboard_notes", "color", "VARCHAR(7)")
     with SessionLocal() as session:
         existing = set(session.scalars(select(Setting.key)).all())
         added = False

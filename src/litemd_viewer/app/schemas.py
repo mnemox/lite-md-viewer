@@ -74,6 +74,7 @@ class CreateNoteRequest(Camel):
     kind: str = "note"
     front_text: str = ""
     back_text: str = ""
+    color: str | None = None
     x: float = 0.0
     y: float = 0.0
     width: int | None = None
@@ -83,6 +84,7 @@ class CreateNoteRequest(Camel):
 class PatchNoteRequest(Camel):
     front_text: str | None = None
     back_text: str | None = None
+    color: str | None = None
     x: float | None = None
     y: float | None = None
     z: int | None = None
@@ -224,6 +226,7 @@ class NoteDto(Camel):
     kind: str
     front_text: str
     back_text: str
+    color: str | None
     x: float
     y: float
     z: int

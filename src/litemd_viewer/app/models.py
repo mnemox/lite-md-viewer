@@ -294,6 +294,7 @@ class DashboardNote(Base):
     kind: Mapped[str] = mapped_column(String, default=DashboardNoteKind.NOTE)
     front_text: Mapped[str] = mapped_column(Text, default="")
     back_text: Mapped[str] = mapped_column(Text, default="")
+    color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     x: Mapped[float] = mapped_column(Float, default=0.0)
     y: Mapped[float] = mapped_column(Float, default=0.0)
     z: Mapped[int] = mapped_column(Integer, default=0)

@@ -5,6 +5,7 @@ import { api } from './api.js';
 import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
+import { renderColorSwatches, contrastColor } from './colors.js';
 
 const $ = (id) => document.getElementById(id);
 const DRAG_THRESHOLD = 4;
@@ -125,6 +126,7 @@ async function openBoardEditor(b) {
 
 function boardEditor(board) {
   return new Promise((resolve) => {
+    let selectedColor = board?.color || null;
     const overlay = document.createElement('div');
     overlay.className = 'modal';
     overlay.innerHTML = `
@@ -140,10 +142,7 @@ function boardEditor(board) {
           </label>
           <label class="board-editor-row">
             <span>Background color</span>
-            <div class="board-editor-color-wrap">
-              <input class="board-editor-color" type="color" value="#e2e8f0" />
-              <span class="board-editor-hex"></span>
-            </div>
+            <div class="color-swatches"></div>
           </label>
         </div>
         <div class="modal-foot" style="justify-content:flex-end">
@@ -152,16 +151,13 @@ function boardEditor(board) {
         </div>
       </div>`;
     const nameInput = overlay.querySelector('.board-editor-name');
-    const colorInput = overlay.querySelector('.board-editor-color');
-    const hexLabel = overlay.querySelector('.board-editor-hex');
+    const swatches = overlay.querySelector('.color-swatches');
     nameInput.value = board?.name || '';
-    if (board?.color) colorInput.value = board.color;
-    hexLabel.textContent = colorInput.value;
-    colorInput.addEventListener('input', () => { hexLabel.textContent = colorInput.value; });
+    renderColorSwatches(swatches, selectedColor, (c) => { selectedColor = c; });
 
     const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
     const onKey = (e) => { if (e.key === 'Escape') close(null); };
-    const submit = () => close({ name: nameInput.value.trim(), color: colorInput.value });
+    const submit = () => close({ name: nameInput.value.trim(), color: selectedColor });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) return close(null);
       const act = e.target.closest('[data-act]')?.dataset.act;
@@ -179,15 +175,6 @@ function boardEditor(board) {
 function applyBoardColor(el, color) {
   el.style.backgroundColor = color || '';
   el.style.color = color ? contrastColor(color) : '';
-}
-
-function contrastColor(hex) {
-  const c = hex.replace('#', '');
-  const r = parseInt(c.slice(0, 2), 16) || 0;
-  const g = parseInt(c.slice(2, 4), 16) || 0;
-  const b = parseInt(c.slice(4, 6), 16) || 0;
-  const y = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return y > 0.5 ? '#111111' : '#ffffff';
 }
 
 async function deleteBoard(el) {
