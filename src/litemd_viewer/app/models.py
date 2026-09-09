@@ -363,6 +363,20 @@ class DocumentNoteGroup(Base):
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class Board(Base):
+    """A board that can hold tasks. Positioned on the boards screen like a note card."""
+
+    __tablename__ = "boards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, default="")
+    x: Mapped[float] = mapped_column(Float, default=0.0)
+    y: Mapped[float] = mapped_column(Float, default=0.0)
+    z: Mapped[int] = mapped_column(Integer, default=0)
+    created_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_utc: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class AiChatRole:
     USER = "user"
     ASSISTANT = "assistant"

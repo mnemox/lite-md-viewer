@@ -113,6 +113,29 @@ class PatchDocNoteGroupRequest(Camel):
     height: int | None = None
 
 
+class BoardDto(Camel):
+    id: int
+    name: str
+    x: float
+    y: float
+    z: int
+    created_utc: datetime
+    updated_utc: datetime
+
+
+class CreateBoardRequest(Camel):
+    name: str = ""
+    x: float = 0.0
+    y: float = 0.0
+
+
+class PatchBoardRequest(Camel):
+    name: str | None = None
+    x: float | None = None
+    y: float | None = None
+    z: int | None = None
+
+
 class AddRelationRequest(Camel):
     other_id: int
     kind: str

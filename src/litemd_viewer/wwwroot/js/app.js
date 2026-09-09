@@ -6,6 +6,7 @@ import { renderTree } from './tree.js';
 import { initBrowse, openBrowse } from './browse.js';
 import { openRelations, closeRelations } from './relations.js';
 import { initDashboard, renderDashboardNotes } from './dashboard.js';
+import { initBoards, renderBoards } from './boards.js';
 import { initDocNotes, loadDocNotes, clearDocNotes, refreshDocHighlights } from './docnotes.js';
 import { initSearch, syncSearchScope } from './search.js';
 import { initAiChat, loadAiChat, clearAiChat } from './aichat.js';
@@ -115,6 +116,7 @@ async function applyRoute(route) {
     return;
   }
   if (route.name === 'notes') { showNotes(); return; }
+  if (route.name === 'boards') { showBoards(); return; }
   showWelcome();
 }
 
@@ -131,18 +133,24 @@ function openDashboard() {
   navigate({ name: 'notes' });
 }
 
+function openBoards() {
+  navigate({ name: 'boards' });
+}
+
 function showNotes() {
   closeRelations();
   state.active = null; state.text = '';
   applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.add('dashboard');
-  $('dashboardBtn').classList.add('active');
+  $('dashboardBtn')?.classList.add('active');
+  $('boardsBtn')?.classList.remove('active');
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
   $('loading').classList.add('hidden');
-  $('dashboard').classList.remove('hidden');
+  $('dashboard')?.classList.remove('hidden');
+  $('boards')?.classList.add('hidden');
   renderTree($('tree'), state.treeData, treeHandlers, null);
   renderDashboardNotes();
   clearDocNotes();
@@ -150,15 +158,38 @@ function showNotes() {
   syncSearchScope();     // no document open: the in-document scope lapses
 }
 
+function showBoards() {
+  closeRelations();
+  state.active = null; state.text = '';
+  applyReadOnly(false);
+  document.body.classList.remove('file-open');
+  document.body.classList.add('dashboard');
+  $('dashboardBtn')?.classList.remove('active');
+  $('boardsBtn')?.classList.add('active');
+  $('welcome').classList.add('hidden');
+  $('viewer').classList.add('hidden');
+  $('editor').classList.add('hidden');
+  $('loading').classList.add('hidden');
+  $('dashboard')?.classList.add('hidden');
+  $('boards')?.classList.remove('hidden');
+  renderTree($('tree'), state.treeData, treeHandlers, null);
+  renderBoards();
+  clearDocNotes();
+  clearAiChat();
+  syncSearchScope();
+}
+
 // ---------- file open / view / edit ----------
 // Pure DOM + fetch: loads and renders a file's content. Never touches history/URL --
 // that's navigate()'s job -- so it's also reused for in-place content refreshes (e.g.
 // refreshTree's disk-status-flip) that shouldn't push or change a route.
 async function loadFileContent(id, mode) {
-  // leaving the dashboard for a real file
+  // leaving the dashboard / boards for a real file
   document.body.classList.remove('dashboard');
-  $('dashboardBtn').classList.remove('active');
-  $('dashboard').classList.add('hidden');
+  $('dashboardBtn')?.classList.remove('active');
+  $('boardsBtn')?.classList.remove('active');
+  $('dashboard')?.classList.add('hidden');
+  $('boards')?.classList.add('hidden');
   // show the loading spinner over an emptied content area while we fetch
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
@@ -313,8 +344,10 @@ function showWelcome() {
   clearAiChat();
   document.body.classList.remove('file-open');
   document.body.classList.remove('dashboard');
-  $('dashboardBtn').classList.remove('active');
-  $('dashboard').classList.add('hidden');
+  $('dashboardBtn')?.classList.remove('active');
+  $('boardsBtn')?.classList.remove('active');
+  $('dashboard')?.classList.add('hidden');
+  $('boards')?.classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
   $('loading').classList.add('hidden');
@@ -407,6 +440,7 @@ async function init() {
 
   initBrowse();
   initDashboard(goToFile);
+  initBoards();
   initDocNotes();
   initAiChat();
   initSearch(goToFile, () => state.active);
@@ -437,6 +471,7 @@ async function init() {
 
   $('themeBtn').onclick = toggleTheme;
   $('dashboardBtn').onclick = openDashboard;
+  $('boardsBtn').onclick = openBoards;
   $('newFileBtn').onclick = startNewFile;
   $('addBtn').onclick = toggleAddMenu;
   $('addFileOpt').onclick = () => { closeAddMenu(); startAddFile(); };

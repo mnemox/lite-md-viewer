@@ -22,6 +22,7 @@ function parseRoute(pathname) {
   const file = /^\/files\/(\d+)(\/edit)?\/?$/.exec(pathname);
   if (file) return { name: 'file', fileId: Number(file[1]), mode: file[2] ? 'edit' : 'view' };
   if (/^\/notes\/?$/.test(pathname)) return { name: 'notes' };
+  if (/^\/boards\/?$/.test(pathname)) return { name: 'boards' };
   return { name: 'welcome' };
 }
 
@@ -33,6 +34,7 @@ function sameRoute(a, b) {
 function toPath(route) {
   if (route.name === 'file') return `/files/${route.fileId}` + (route.mode === 'edit' ? '/edit' : '');
   if (route.name === 'notes') return '/notes';
+  if (route.name === 'boards') return '/boards';
   return '/';
 }
 

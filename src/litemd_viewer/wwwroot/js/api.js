@@ -104,6 +104,12 @@ export const api = {
   documentNoteGroups: () => req('GET', '/api/dashboard/document-notes'),
   patchDocNoteGroup: (fileId, patch) => req('PATCH', `/api/dashboard/document-notes/${fileId}`, patch),
 
+  // Boards screen
+  boards: () => req('GET', '/api/boards'),
+  createBoard: (body) => req('POST', '/api/boards', body),
+  patchBoard: (id, patch) => req('PATCH', `/api/boards/${id}`, patch),
+  deleteBoard: (id) => req('DELETE', `/api/boards/${id}`),
+
   // Local analysis: chat over one open document, answered by a local Ollama model.
   aiStatus: () => req('GET', '/api/ai/status'),
   aiChat: (fileId) => req('GET', `/api/files/${fileId}/chat`),
