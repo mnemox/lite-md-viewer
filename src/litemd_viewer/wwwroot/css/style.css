@@ -579,6 +579,16 @@ body.dashboard .topbar .bar-center { display: none !important; }
 }
 .board-card:hover .board-card-menu, .board-card-menu:focus { opacity: 1; }
 
+.board-editor-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.board-editor-row { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); }
+.board-editor-row span { font-weight: 600; }
+.board-editor-color-wrap { display: flex; align-items: center; gap: 10px; }
+.board-editor-color {
+  width: 42px; height: 42px; padding: 0; border: 1px solid var(--border); border-radius: 8px;
+  background: transparent; cursor: pointer;
+}
+.board-editor-hex { font-family: monospace; font-size: 13px; color: var(--text); text-transform: uppercase; }
+
 /* ---------- per-document notes (file page) ---------- */
 
 /* floating "+" button, bottom-right; only while a file is open, below the drawer/modals */

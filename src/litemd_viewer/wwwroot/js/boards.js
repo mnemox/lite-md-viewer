@@ -2,7 +2,7 @@
 // First stage: each board is just a name with a 3-dot Edit/Delete menu.
 
 import { api } from './api.js';
-import { toast, confirmDialog, promptDialog } from './ui.js';
+import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
 
@@ -58,6 +58,7 @@ function buildBoard(b) {
   el.style.insetBlockStart = (b.y || 0) + 'px';
   el.style.zIndex = String(b.z || 0);
   el.__board = b;
+  applyBoardColor(el, b.color);
 
   const title = document.createElement('span');
   title.className = 'board-card-title';
@@ -94,20 +95,19 @@ function openBoardMenu(el, anchor) {
 }
 
 async function openBoardEditor(b) {
-  const value = b ? b.name : '';
-  const name = await promptDialog(b ? 'Rename board' : 'New board', {
-    okLabel: b ? 'Save' : 'Create',
-    placeholder: 'Board name…',
-    value,
-  });
-  if (name == null) return;
+  const result = await boardEditor(b);
+  if (!result?.name?.trim()) return;
 
   if (b) {
     try {
-      const updated = await api.patchBoard(b.id, { name });
+      const updated = await api.patchBoard(b.id, { name: result.name, color: result.color });
       b.name = updated.name;
-      const title = elForBoard(b.id)?.querySelector('.board-card-title');
-      if (title) title.textContent = updated.name;
+      b.color = updated.color;
+      const el = elForBoard(b.id);
+      if (el) {
+        el.querySelector('.board-card-title').textContent = updated.name;
+        applyBoardColor(el, updated.color);
+      }
       toast('Board updated', 'ok');
     } catch (e) { toast(e.message, 'error'); }
   } else {
@@ -115,12 +115,79 @@ async function openBoardEditor(b) {
     const x = existing.length * NEW_OFFSET;
     const y = existing.length * NEW_OFFSET;
     try {
-      const created = await api.createBoard({ name, x, y });
+      const created = await api.createBoard({ name: result.name, color: result.color, x, y });
       board.appendChild(buildBoard(created));
       bringToFront(board.lastElementChild);
       toast('Board created', 'ok');
     } catch (e) { toast(e.message, 'error'); }
   }
+}
+
+function boardEditor(board) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.innerHTML = `
+      <div class="modal-card" style="width:min(360px,96vw)">
+        <div class="modal-head">
+          <strong>${board ? 'Edit board' : 'New board'}</strong>
+          <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
+        </div>
+        <div class="board-editor-body">
+          <label class="board-editor-row">
+            <span>Name</span>
+            <input class="input board-editor-name" type="text" placeholder="Board name…" />
+          </label>
+          <label class="board-editor-row">
+            <span>Background color</span>
+            <div class="board-editor-color-wrap">
+              <input class="board-editor-color" type="color" value="#e2e8f0" />
+              <span class="board-editor-hex"></span>
+            </div>
+          </label>
+        </div>
+        <div class="modal-foot" style="justify-content:flex-end">
+          <button class="btn" data-act="cancel">Cancel</button>
+          <button class="btn primary" data-act="save">${board ? 'Save' : 'Create'}</button>
+        </div>
+      </div>`;
+    const nameInput = overlay.querySelector('.board-editor-name');
+    const colorInput = overlay.querySelector('.board-editor-color');
+    const hexLabel = overlay.querySelector('.board-editor-hex');
+    nameInput.value = board?.name || '';
+    if (board?.color) colorInput.value = board.color;
+    hexLabel.textContent = colorInput.value;
+    colorInput.addEventListener('input', () => { hexLabel.textContent = colorInput.value; });
+
+    const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') close(null); };
+    const submit = () => close({ name: nameInput.value.trim(), color: colorInput.value });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) return close(null);
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (act === 'close' || act === 'cancel') close(null);
+      if (act === 'save') submit();
+    });
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    nameInput.focus();
+    nameInput.select();
+  });
+}
+
+function applyBoardColor(el, color) {
+  el.style.backgroundColor = color || '';
+  el.style.color = color ? contrastColor(color) : '';
+}
+
+function contrastColor(hex) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.slice(0, 2), 16) || 0;
+  const g = parseInt(c.slice(2, 4), 16) || 0;
+  const b = parseInt(c.slice(4, 6), 16) || 0;
+  const y = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return y > 0.5 ? '#111111' : '#ffffff';
 }
 
 async function deleteBoard(el) {

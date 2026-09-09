@@ -18,6 +18,7 @@ def to_dto(board: Board) -> BoardDto:
     return BoardDto(
         id=board.id,
         name=board.name,
+        color=board.color,
         x=board.x,
         y=board.y,
         z=board.z,
@@ -40,6 +41,7 @@ def create_board(
     now = utcnow()
     board = Board(
         name=req.name or "New board",
+        color=req.color,
         x=req.x,
         y=req.y,
         z=max((b.z for b in existing), default=0) + 1,
@@ -69,6 +71,8 @@ def patch_board(
         raise not_found()
     if req.name is not None:
         board.name = req.name
+    if req.color is not None:
+        board.color = req.color
     if req.x is not None:
         board.x = req.x
     if req.y is not None:

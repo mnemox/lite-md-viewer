@@ -116,6 +116,7 @@ class PatchDocNoteGroupRequest(Camel):
 class BoardDto(Camel):
     id: int
     name: str
+    color: str | None
     x: float
     y: float
     z: int
@@ -125,12 +126,14 @@ class BoardDto(Camel):
 
 class CreateBoardRequest(Camel):
     name: str = ""
+    color: str | None = None
     x: float = 0.0
     y: float = 0.0
 
 
 class PatchBoardRequest(Camel):
     name: str | None = None
+    color: str | None = None
     x: float | None = None
     y: float | None = None
     z: int | None = None
