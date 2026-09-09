@@ -21,6 +21,8 @@ let current = null;
 function parseRoute(pathname) {
   const file = /^\/files\/(\d+)(\/edit)?\/?$/.exec(pathname);
   if (file) return { name: 'file', fileId: Number(file[1]), mode: file[2] ? 'edit' : 'view' };
+  const boardLists = /^\/boards\/(\d+)\/?$/.exec(pathname);
+  if (boardLists) return { name: 'boardLists', boardId: Number(boardLists[1]) };
   if (/^\/notes\/?$/.test(pathname)) return { name: 'notes' };
   if (/^\/boards\/?$/.test(pathname)) return { name: 'boards' };
   return { name: 'welcome' };
@@ -28,12 +30,15 @@ function parseRoute(pathname) {
 
 function sameRoute(a, b) {
   if (!a || !b || a.name !== b.name) return false;
-  return a.name !== 'file' || (a.fileId === b.fileId && a.mode === b.mode);
+  if (a.name === 'file') return a.fileId === b.fileId && a.mode === b.mode;
+  if (a.name === 'boardLists') return a.boardId === b.boardId;
+  return true;
 }
 
 function toPath(route) {
   if (route.name === 'file') return `/files/${route.fileId}` + (route.mode === 'edit' ? '/edit' : '');
   if (route.name === 'notes') return '/notes';
+  if (route.name === 'boardLists') return `/boards/${route.boardId}`;
   if (route.name === 'boards') return '/boards';
   return '/';
 }

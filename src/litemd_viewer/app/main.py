@@ -22,6 +22,7 @@ from .errors import register_error_handlers
 from .routers import (
     ai,
     attachments,
+    board_lists,
     boards,
     browse,
     content,
@@ -93,6 +94,7 @@ app.include_router(attachments.router)
 app.include_router(attachments.downloads)
 app.include_router(dashboard.router)
 app.include_router(boards.router)
+app.include_router(board_lists.router)
 app.include_router(document_notes.router)
 app.include_router(document_notes.groups)
 app.include_router(search.router)

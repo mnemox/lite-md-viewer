@@ -7,6 +7,7 @@ import { initBrowse, openBrowse } from './browse.js';
 import { openRelations, closeRelations } from './relations.js';
 import { initDashboard, renderDashboardNotes } from './dashboard.js';
 import { initBoards, renderBoards } from './boards.js';
+import { initBoardLists, renderBoardLists } from './board-lists.js';
 import { initDocNotes, loadDocNotes, clearDocNotes, refreshDocHighlights } from './docnotes.js';
 import { initSearch, syncSearchScope } from './search.js';
 import { initAiChat, loadAiChat, clearAiChat } from './aichat.js';
@@ -117,6 +118,7 @@ async function applyRoute(route) {
   }
   if (route.name === 'notes') { showNotes(); return; }
   if (route.name === 'boards') { showBoards(); return; }
+  if (route.name === 'boardLists') { showBoardLists(route.boardId); return; }
   showWelcome();
 }
 
@@ -152,6 +154,7 @@ function showNotes() {
   $('loading').classList.add('hidden');
   $('dashboard')?.classList.remove('hidden');
   $('boards')?.classList.add('hidden');
+  $('boardLists')?.classList.add('hidden');
   renderTree($('tree'), state.treeData, treeHandlers, null);
   renderDashboardNotes();
   clearDocNotes();
@@ -174,8 +177,34 @@ function showBoards() {
   $('loading').classList.add('hidden');
   $('dashboard')?.classList.add('hidden');
   $('boards')?.classList.remove('hidden');
+  $('boardLists')?.classList.add('hidden');
   renderTree($('tree'), state.treeData, treeHandlers, null);
   renderBoards();
+  clearDocNotes();
+  clearAiChat();
+  syncSearchScope();
+}
+
+// A single board opened as Trello-style lists. Reached by clicking a board card; the Boards
+// drawer button stays active because this lives inside the boards area.
+function showBoardLists(boardId) {
+  stopAutoSave();
+  closeRelations();
+  state.active = null; state.text = '';
+  applyReadOnly(false);
+  document.body.classList.remove('file-open');
+  document.body.classList.add('dashboard');
+  $('dashboardBtn')?.classList.remove('active');
+  $('boardsBtn')?.classList.add('active');
+  $('welcome').classList.add('hidden');
+  $('viewer').classList.add('hidden');
+  $('editor').classList.add('hidden');
+  $('loading').classList.add('hidden');
+  $('dashboard')?.classList.add('hidden');
+  $('boards')?.classList.add('hidden');
+  $('boardLists')?.classList.remove('hidden');
+  renderTree($('tree'), state.treeData, treeHandlers, null);
+  renderBoardLists(boardId);
   clearDocNotes();
   clearAiChat();
   syncSearchScope();
@@ -192,6 +221,7 @@ async function loadFileContent(id, mode) {
   $('boardsBtn')?.classList.remove('active');
   $('dashboard')?.classList.add('hidden');
   $('boards')?.classList.add('hidden');
+  $('boardLists')?.classList.add('hidden');
   // show the loading spinner over an emptied content area while we fetch
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
@@ -368,6 +398,7 @@ function showWelcome() {
   $('boardsBtn')?.classList.remove('active');
   $('dashboard')?.classList.add('hidden');
   $('boards')?.classList.add('hidden');
+  $('boardLists')?.classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
   $('loading').classList.add('hidden');
@@ -461,6 +492,7 @@ async function init() {
   initBrowse();
   initDashboard(goToFile);
   initBoards();
+  initBoardLists();
   initDocNotes();
   initAiChat();
   initSearch(goToFile, () => state.active);

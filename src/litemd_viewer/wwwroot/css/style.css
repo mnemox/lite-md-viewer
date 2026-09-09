@@ -605,6 +605,95 @@ body.dashboard .topbar .bar-center { display: none !important; }
 }
 .color-mixer-hex { font-family: monospace; font-size: 13px; color: var(--text); text-transform: uppercase; }
 
+/* ---------- board lists (one board opened as Trello-style columns) ---------- */
+.board-lists-screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+.bl-header {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px;
+  border-block-end: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.bl-back { flex: 0 0 auto; }
+.bl-title {
+  margin: 0; font-size: 18px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.bl-canvas {
+  flex: 1 1 auto;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px;
+  overflow-x: auto; overflow-y: hidden;
+}
+
+.bl-list {
+  flex: 0 0 auto;
+  width: 272px; max-height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+.bl-list.dragging { opacity: .5; }
+
+.bl-list-head { display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 12px; }
+.bl-list-title {
+  flex: 1 1 auto;
+  font-weight: 700; font-size: 14px; color: var(--text);
+  padding: 4px 2px; border-radius: 6px; cursor: text; overflow-wrap: anywhere;
+}
+.bl-list-title:hover { background: var(--bg-elev-2); }
+.bl-list-del { flex: 0 0 auto; width: 26px; height: 26px; font-size: 18px; line-height: 1; opacity: 0; }
+.bl-list:hover .bl-list-del, .bl-list-del:focus { opacity: 1; }
+
+.bl-cards {
+  flex: 1 1 auto; min-height: 8px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 2px 8px;
+}
+
+.bl-card {
+  position: relative;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+  padding: 8px 28px 8px 10px;
+  font-size: 13px; color: var(--text);
+  cursor: grab;
+}
+.bl-card.dragging { opacity: .5; }
+.bl-card-text { overflow-wrap: anywhere; white-space: pre-wrap; min-height: 1em; }
+.bl-card-del {
+  position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
+  width: 22px; height: 22px; font-size: 15px; line-height: 1; opacity: 0;
+}
+.bl-card:hover .bl-card-del, .bl-card-del:focus { opacity: 1; }
+
+.bl-add-card { padding: 6px 8px 10px; }
+.bl-add-list { flex: 0 0 auto; width: 272px; }
+.bl-add-btn {
+  width: 100%; text-align: start;
+  padding: 8px 10px;
+  border: 1px dashed var(--border); border-radius: 8px;
+  background: transparent; color: var(--text-dim);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.bl-add-btn:hover { background: var(--bg-elev-2); color: var(--text); }
+.bl-add-list .bl-add-btn { background: color-mix(in srgb, var(--bg-elev) 60%, transparent); }
+
+.bl-input {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid var(--accent); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+  font: inherit; font-size: 13px;
+}
+.bl-textarea { resize: vertical; min-height: 40px; }
+
 /* ---------- per-document notes (file page) ---------- */
 
 /* floating "+" button, bottom-right; only while a file is open, below the drawer/modals */

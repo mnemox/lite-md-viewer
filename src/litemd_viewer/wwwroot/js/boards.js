@@ -6,6 +6,7 @@ import { toast, confirmDialog } from './ui.js';
 import { popupMenu } from './tree.js';
 import { createPanZoom } from './panzoom.js';
 import { renderColorSwatches, contrastColor } from './colors.js';
+import { navigate } from './router.js';
 
 const $ = (id) => document.getElementById(id);
 const DRAG_THRESHOLD = 4;
@@ -77,6 +78,7 @@ function buildBoard(b) {
   makeDraggable(el, {
     skipSelector: '.board-card-menu',
     onDrop: () => persistPosition(el),
+    onClick: () => navigate({ name: 'boardLists', boardId: b.id }),
   });
 
   menuBtn.addEventListener('click', (e) => {
@@ -194,7 +196,7 @@ function bringToFront(el) {
   if (el.__board) el.__board.z = z;
 }
 
-function makeDraggable(el, { skipSelector = null, onDrop } = {}) {
+function makeDraggable(el, { skipSelector = null, onDrop, onClick } = {}) {
   let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false, pid = 0;
 
   el.addEventListener('pointerdown', (e) => {
@@ -233,6 +235,7 @@ function makeDraggable(el, { skipSelector = null, onDrop } = {}) {
     el.removeEventListener('pointerup', onUp);
     el.removeEventListener('pointercancel', onUp);
     if (moved) onDrop?.();
+    else onClick?.();
   }
 }
 

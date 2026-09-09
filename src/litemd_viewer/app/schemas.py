@@ -141,6 +141,48 @@ class PatchBoardRequest(Camel):
     z: int | None = None
 
 
+class BoardCardDto(Camel):
+    id: int
+    list_id: int
+    text: str
+    sort_order: int
+    created_utc: datetime
+    updated_utc: datetime
+
+
+class BoardListDto(Camel):
+    id: int
+    board_id: int
+    name: str
+    sort_order: int
+    created_utc: datetime
+    updated_utc: datetime
+    cards: list[BoardCardDto] = []
+
+
+class CreateBoardListRequest(Camel):
+    name: str = ""
+
+
+class PatchBoardListRequest(Camel):
+    name: str | None = None
+    sort_order: int | None = None
+
+
+class CreateBoardCardRequest(Camel):
+    text: str = ""
+
+
+class PatchBoardCardRequest(Camel):
+    text: str | None = None
+
+
+class ReorderRequest(Camel):
+    """A new ordering of list ids (list reorder) or card ids (card move/reorder)."""
+
+    ordered_ids: list[int] = []
+
+
 class AddRelationRequest(Camel):
     other_id: int
     kind: str
