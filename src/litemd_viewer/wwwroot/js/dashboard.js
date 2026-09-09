@@ -462,7 +462,7 @@ function openEditor({ kind, el = null }) {
       <div class="note-edit-body">
         <div class="note-edit-row">
           <span class="note-edit-label">Background color</span>
-          <div class="color-swatches" id="noteColorSwatches"></div>
+          <div class="color-picker" id="noteColorSwatches"></div>
         </div>
         ${row(flip ? 'Front' : '', 'noteFront', '')}
         ${flip ? row('Back', 'noteBack', '') : ''}

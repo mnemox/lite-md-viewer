@@ -142,7 +142,7 @@ function boardEditor(board) {
           </label>
           <label class="board-editor-row">
             <span>Background color</span>
-            <div class="color-swatches"></div>
+            <div class="color-picker"></div>
           </label>
         </div>
         <div class="modal-foot" style="justify-content:flex-end">
@@ -151,7 +151,7 @@ function boardEditor(board) {
         </div>
       </div>`;
     const nameInput = overlay.querySelector('.board-editor-name');
-    const swatches = overlay.querySelector('.color-swatches');
+    const swatches = overlay.querySelector('.color-picker');
     nameInput.value = board?.name || '';
     renderColorSwatches(swatches, selectedColor, (c) => { selectedColor = c; });
 

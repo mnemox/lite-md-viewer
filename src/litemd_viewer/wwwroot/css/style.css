@@ -584,6 +584,7 @@ body.dashboard .topbar .bar-center { display: none !important; }
 .board-editor-row { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); }
 .board-editor-row span { font-weight: 600; }
 
+.color-picker { display: flex; flex-direction: column; gap: 12px; }
 .color-swatches { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0; }
 .color-swatch {
   width: 28px; height: 28px; border-radius: 50%;
@@ -597,6 +598,12 @@ body.dashboard .topbar .bar-center { display: none !important; }
   content: "—"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   color: var(--text-dim); font-size: 12px; line-height: 1;
 }
+.color-mixer { display: flex; align-items: center; gap: 10px; }
+.color-mixer-input {
+  width: 42px; height: 42px; padding: 0; border: 1px solid var(--border); border-radius: 8px;
+  background: transparent; cursor: pointer;
+}
+.color-mixer-hex { font-family: monospace; font-size: 13px; color: var(--text); text-transform: uppercase; }
 
 /* ---------- per-document notes (file page) ---------- */
 
