@@ -138,6 +138,7 @@ function openBoards() {
 }
 
 function showNotes() {
+  stopAutoSave();
   closeRelations();
   state.active = null; state.text = '';
   applyReadOnly(false);
@@ -159,6 +160,7 @@ function showNotes() {
 }
 
 function showBoards() {
+  stopAutoSave();
   closeRelations();
   state.active = null; state.text = '';
   applyReadOnly(false);
@@ -251,6 +253,17 @@ function updateDocNotesOffset() {
 }
 
 let previewTimer = null;
+let autoSaveTimer = null;
+
+function stopAutoSave() {
+  if (autoSaveTimer) { clearInterval(autoSaveTimer); autoSaveTimer = null; }
+}
+
+function startAutoSave() {
+  stopAutoSave();
+  if (!state.active || state.readOnly) return;
+  autoSaveTimer = setInterval(() => save({ silent: true }), 1000);
+}
 
 // Pure DOM: switches the view/edit panes for the active file. Called by applyRoute (so
 // it never re-fetches content) -- never call this directly to change mode, use setMode().
@@ -266,10 +279,12 @@ function applyMode(mode) {
   $('viewer').classList.toggle('hidden', !view);
   $('editor').classList.toggle('hidden', view);
   if (view) {
+    stopAutoSave();
     Promise.resolve(renderDoc(state.docPath, state.text, $('viewer'))).then(() => refreshDocHighlights());
   } else {
     $('editorText').value = state.text;
     Promise.resolve(renderDoc(state.docPath, state.text, $('editorPreview'))).then(() => refreshDocHighlights());
+    startAutoSave();
   }
 }
 
@@ -280,14 +295,18 @@ function setMode(mode) {
   navigate({ name: 'file', fileId: state.active.id, mode }, { push: false });
 }
 
-async function save() {
-  if (!state.active) return;
+async function save({ silent = false } = {}) {
+  if (!state.active || state.readOnly || state.mode !== 'edit') return;
   const text = $('editorText').value;
+  if (text === state.text) return;
   try {
     await api.saveContent(state.active.id, text);
     state.text = text;
-    toast('Saved', 'ok');
-  } catch (e) { toast(e.message, 'error'); }
+    if (!silent) toast('Saved', 'ok');
+  } catch (e) {
+    if (!silent) toast(e.message, 'error');
+    else console.error('autosave failed', e);
+  }
 }
 
 // Restore a missing file to disk from its DB copy, at its original path. Afterwards the
@@ -338,6 +357,7 @@ async function deleteDisk(file) {
 // Pure DOM: resets the layout to the empty welcome screen. Called by applyRoute --
 // navigate to it (see removeFromList/deleteDisk above) rather than calling this directly.
 function showWelcome() {
+  stopAutoSave();
   state.active = null; state.text = '';
   applyReadOnly(false);
   clearDocNotes();
@@ -464,6 +484,10 @@ async function init() {
     if (e.key === 'Escape') {
       if (closeAddMenu()) return;           // first Escape only closes the Add menu
       if (pinned) setPinned(false); else closeDrawer();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (state.mode === 'edit') save();
     }
   });
 
