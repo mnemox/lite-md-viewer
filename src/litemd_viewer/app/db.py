@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, event, select
+from sqlalchemy import create_engine, event, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -57,9 +57,9 @@ DEFAULT_SETTINGS = {
 
 def _add_column_if_missing(conn, table: str, column: str, sql_type: str = "INTEGER") -> None:
     """Idempotent ALTER TABLE for existing installs."""
-    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+    cols = [r[1] for r in conn.execute(text(f"PRAGMA table_info({table})"))]
     if column not in cols:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
 
 
 def init_db() -> None:
