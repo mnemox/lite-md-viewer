@@ -9,7 +9,11 @@ description = "A tiny local database with scalar indexes, full-text search and h
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.24.0",
-    "hnswlib>=0.8.0",
+    # chroma-hnswlib is a maintained fork of hnswlib that ships prebuilt wheels
+    # (including Windows/cp310) and imports as `hnswlib`, so no C++ compiler is
+    # needed to install. The upstream `hnswlib` sdist has no wheels and fails to
+    # build on machines without MSVC Build Tools.
+    "chroma-hnswlib>=0.7.6",
 ]
 
 [tool.setuptools]
