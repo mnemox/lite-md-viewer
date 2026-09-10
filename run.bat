@@ -7,6 +7,7 @@ setlocal
 ::    run.bat 5100            start on a specific port
 ::    run.bat --no-browser    start without opening a browser
 ::    run.bat --setup         (re)create the virtualenv and install dependencies, then start
+::    run.bat --update-db     migrate an existing database up to the current schema, then start
 ::    run.bat --setup-ai      (re)run the local analysis wizard (Ollama + Gemma 4), then start
 ::    run.bat --no-ai         skip local analysis for this launch only
 ::
@@ -25,6 +26,7 @@ set "OPEN_BROWSER=1"
 set "SETUP="
 set "SETUP_AI="
 set "NO_AI="
+set "UPDATE_DB="
 
 :: ---------------------------------------------------------------- arguments
 :parse
@@ -33,6 +35,7 @@ if /i "%~1"=="--no-browser" goto arg_nobrowser
 if /i "%~1"=="--setup"      goto arg_setup
 if /i "%~1"=="--setup-ai"   goto arg_setup_ai
 if /i "%~1"=="--no-ai"      goto arg_noai
+if /i "%~1"=="--update-db"  goto arg_updatedb
 if /i "%~1"=="-h"           goto usage
 if /i "%~1"=="--help"       goto usage
 echo %~1| findstr /r "^[0-9][0-9]*$" >nul
@@ -58,6 +61,11 @@ goto parse
 
 :arg_noai
 set "NO_AI=1"
+shift
+goto parse
+
+:arg_updatedb
+set "UPDATE_DB=1"
 shift
 goto parse
 
@@ -167,6 +175,11 @@ if errorlevel 1 (
 :: openBrowserOnStart -- otherwise a browser would open twice.
 set "LITEMD_NO_BROWSER=1"
 
+:: Opt-in database migrations. Without this the app leaves an out-of-date database untouched
+:: and refuses to start (it never deletes data); --update-db lets it add the missing tables
+:: and columns in place.
+if defined UPDATE_DB set "LITEMD_ALLOW_DB_UPGRADE=1"
+
 if "%OPEN_BROWSER%"=="1" start "" /min powershell -NoProfile -Command "for ($i=0; $i -lt 120; $i++) { try { if ((Invoke-WebRequest -UseBasicParsing -Uri '%URL%/api/search/status' -TimeoutSec 2).StatusCode -eq 200) { Start-Process '%URL%'; exit } } catch { }; Start-Sleep -Milliseconds 500 }"
 
 echo Starting LiteMdViewer on %URL%
@@ -182,11 +195,14 @@ cd /d "%APPDIR%" || (
 exit /b %errorlevel%
 
 :usage
-echo Usage: run.bat [port] [--no-browser] [--setup] [--setup-ai] [--no-ai]
+echo Usage: run.bat [port] [--no-browser] [--setup] [--update-db] [--setup-ai] [--no-ai]
 echo.
 echo   port           port to listen on (default 5099)
 echo   --no-browser   start the server without opening a browser
 echo   --setup        (re)create the virtualenv and install dependencies first
+echo   --update-db    migrate an existing database to the current schema (adds tables and
+echo                  columns only; never deletes data). Without it the app leaves an
+echo                  out-of-date database untouched and stops with an explanation.
 echo   --setup-ai     (re)run the local analysis wizard: installs Ollama and pulls
 echo                  %AI_MODEL% for chatting with the model about an open document
 echo   --no-ai        skip local analysis for this launch only, even if set up

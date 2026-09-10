@@ -84,6 +84,12 @@ EMBEDDING_ENABLED = os.environ.get("LITEMD_DISABLE_EMBEDDING", "") not in ("1", 
 # openBrowserOnStart setting does not produce a second tab.
 NO_BROWSER = os.environ.get("LITEMD_NO_BROWSER", "") in ("1", "true", "True")
 
+# Set LITEMD_ALLOW_DB_UPGRADE=1 (run.bat --update-db) to let startup migrate an existing
+# database up to the current schema. Without it, a database that needs migrating aborts
+# startup instead of being touched. Migrations are additive -- new tables and columns only --
+# and never drop data, so an existing database is never deleted or recreated.
+ALLOW_DB_UPGRADE = os.environ.get("LITEMD_ALLOW_DB_UPGRADE", "") in ("1", "true", "True")
+
 # ---- local analysis (Ollama chat over the open document) ----
 # Off by default: run.bat sets LITEMD_AI_ENABLED=1 only after the user opts in and Ollama
 # has been installed and the model pulled. See run.bat's :setup_ai subroutine.

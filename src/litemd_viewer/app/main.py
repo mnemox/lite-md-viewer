@@ -8,6 +8,7 @@ index.html so the client-side router owns navigation.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 import webbrowser
 from contextlib import asynccontextmanager
@@ -17,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import config
-from .db import SessionLocal, get_setting, init_db
+from .db import DatabaseUpgradeRequired, SessionLocal, get_setting, init_db
 from .errors import register_error_handlers
 from .routers import (
     ai,
@@ -49,7 +50,12 @@ log = logging.getLogger("litemdviewer")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config.ensure_dirs()
-    init_db()
+    try:
+        init_db()
+    except DatabaseUpgradeRequired as exc:
+        # Abort startup rather than run against a database that is behind the schema.
+        log.error("Database upgrade required:\n%s", exc)
+        raise
 
     indexer = get_indexer()
     sync = FileSyncService(indexer)
@@ -140,7 +146,13 @@ def should_open_browser() -> bool:
 def run() -> None:
     import uvicorn
 
-    init_db()
+    try:
+        init_db()
+    except DatabaseUpgradeRequired as exc:
+        # A clear, actionable message instead of a traceback, then a non-zero exit so
+        # run.bat's setup reports failure.
+        print(f"\nSetup could not start.\n\n{exc}\n", file=sys.stderr)
+        raise SystemExit(1)
     if should_open_browser():
         url = f"http://{config.HOST}:{config.PORT}"
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
