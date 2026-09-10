@@ -40,9 +40,32 @@ export function setMermaidTheme(theme) {
   mermaidTheme = theme === 'dark' ? 'dark' : 'default';
 }
 
+// Mermaid diagram-type headers that can open a *bare* (unfenced) diagram document, so a file
+// that is nothing but a diagram still renders instead of collapsing into markdown prose.
+const MERMAID_HEADER = /^(?:%%\{|(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b|(?:sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie(?:\s|$)|mindmap|timeline|quadrantChart|requirementDiagram|gitGraph|C4Context|sankey-beta|xychart-beta|block-beta|packet-beta|zenuml|architecture-beta)\b)/;
+
+// True when the whole document is a Mermaid diagram written without a ```mermaid fence. The
+// test is intentionally tight -- the first non-empty line must be an init directive or a
+// diagram header in its expected shape (e.g. "flowchart LR", "sequenceDiagram") -- so ordinary
+// prose that merely starts with a word like "graph" is not misrendered. A document that already
+// contains a fence is left to the normal markdown path.
+function isBareMermaid(text) {
+  const trimmed = (text || '').trim();
+  if (!trimmed || trimmed.includes('```')) return false;
+  const firstLine = trimmed.split('\n', 1)[0].trim();
+  return MERMAID_HEADER.test(firstLine);
+}
+
 export async function renderMarkdown(text, container) {
-  const html = getMd().render(text || '');
-  container.innerHTML = window.DOMPurify.sanitize(html);
+  if (isBareMermaid(text)) {
+    // Render the file as one diagram. escapeHtml keeps mermaid's own markup safe; the shared
+    // mermaid.run() below turns it into SVG, and a parse failure just leaves the source
+    // visible (like a fenced block) instead of throwing.
+    container.innerHTML = `<pre class="mermaid">${escapeHtml(text.trim())}</pre>`;
+  } else {
+    const html = getMd().render(text || '');
+    container.innerHTML = window.DOMPurify.sanitize(html);
+  }
 
   // External links open in a new tab.
   container.querySelectorAll('a[href]').forEach((a) => {
