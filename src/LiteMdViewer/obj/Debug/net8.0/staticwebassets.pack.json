@@ -1,0 +1,113 @@
+{
+  "Files": [
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\css\\style.css",
+      "PackagePath": "staticwebassets\\css\\style.css"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\favicon.svg",
+      "PackagePath": "staticwebassets\\favicon.svg"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\index.html",
+      "PackagePath": "staticwebassets\\index.html"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\api.js",
+      "PackagePath": "staticwebassets\\js\\api.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\app.js",
+      "PackagePath": "staticwebassets\\js\\app.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\browse.js",
+      "PackagePath": "staticwebassets\\js\\browse.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\dashboard.js",
+      "PackagePath": "staticwebassets\\js\\dashboard.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\graph3d.js",
+      "PackagePath": "staticwebassets\\js\\graph3d.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\graphlayout.js",
+      "PackagePath": "staticwebassets\\js\\graphlayout.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\graphview.js",
+      "PackagePath": "staticwebassets\\js\\graphview.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\panzoom.js",
+      "PackagePath": "staticwebassets\\js\\panzoom.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\relations.js",
+      "PackagePath": "staticwebassets\\js\\relations.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\render.js",
+      "PackagePath": "staticwebassets\\js\\render.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\theme.js",
+      "PackagePath": "staticwebassets\\js\\theme.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\tree.js",
+      "PackagePath": "staticwebassets\\js\\tree.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\js\\ui.js",
+      "PackagePath": "staticwebassets\\js\\ui.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\highlight-github-dark.min.css",
+      "PackagePath": "staticwebassets\\vendor\\highlight-github-dark.min.css"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\highlight-github.min.css",
+      "PackagePath": "staticwebassets\\vendor\\highlight-github.min.css"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\highlight.min.js",
+      "PackagePath": "staticwebassets\\vendor\\highlight.min.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\markdown-it.min.js",
+      "PackagePath": "staticwebassets\\vendor\\markdown-it.min.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\mermaid.min.js",
+      "PackagePath": "staticwebassets\\vendor\\mermaid.min.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\purify.min.js",
+      "PackagePath": "staticwebassets\\vendor\\purify.min.js"
+    },
+    {
+      "Id": "E:\\Sources\\lite-md-viewer\\src\\LiteMdViewer\\wwwroot\\vendor\\three.min.js",
+      "PackagePath": "staticwebassets\\vendor\\three.min.js"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.LiteMdViewer.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.LiteMdViewer.props",
+      "PackagePath": "build\\LiteMdViewer.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.LiteMdViewer.props",
+      "PackagePath": "buildMultiTargeting\\LiteMdViewer.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.LiteMdViewer.props",
+      "PackagePath": "buildTransitive\\LiteMdViewer.props"
+    }
+  ],
+  "ElementsToRemove": []
+}
