@@ -3,7 +3,7 @@
 // (api.reorderLists / api.reorderCards) once the drop settles.
 
 import { api } from './api.js';
-import { toast, confirmDialog } from './ui.js';
+import { toast, confirmDialog, promptDialog } from './ui.js';
 import { navigate } from './router.js';
 import { contrastColor } from './colors.js';
 
@@ -101,20 +101,20 @@ function buildList(list) {
   return el;
 }
 
-function editListTitle(name, list) {
-  openInlineEditor(name, {
+async function editListTitle(name, list) {
+  const val = await promptDialog('Edit list', {
+    okLabel: 'Save',
     value: list.name || '',
-    multiline: false,
-    onCommit: async (val) => {
-      try {
-        const updated = await api.patchList(boardId, list.id, { name: val });
-        list.name = updated.name;
-        name.textContent = updated.name || 'Untitled list';
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    },
+    placeholder: 'List name…',
   });
+  if (val == null || val === list.name) return;
+  try {
+    const updated = await api.patchList(boardId, list.id, { name: val });
+    list.name = updated.name;
+    name.textContent = updated.name || 'Untitled list';
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function deleteList(el, list) {
@@ -137,34 +137,15 @@ function buildAddList() {
   btn.textContent = '+ Add a list';
   wrap.appendChild(btn);
 
-  btn.addEventListener('click', () => {
-    const restore = suspendAncestorsDrag(wrap);
-    const input = document.createElement('input');
-    input.className = 'bl-input';
-    input.placeholder = 'List name…';
-    wrap.replaceChildren(input);
-    input.focus();
-
-    let done = false;
-    const reset = () => { if (done) return; done = true; restore(); wrap.replaceChildren(btn); };
-    const submit = async () => {
-      const val = input.value.trim();
-      if (!val) { reset(); return; }
-      try {
-        const created = await api.createList(boardId, val);
-        canvas.insertBefore(buildList(created), wrap);
-        // Keep composing so several lists can be added in a row.
-        done = true; restore(); wrap.replaceChildren(btn); btn.click();
-      } catch (e) {
-        toast(e.message, 'error');
-        reset();
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); submit(); }
-      else if (e.key === 'Escape') { e.preventDefault(); reset(); }
-    });
-    input.addEventListener('blur', reset);
+  btn.addEventListener('click', async () => {
+    const val = await promptDialog('New list', { okLabel: 'Create', placeholder: 'List name…' });
+    if (!val) return;
+    try {
+      const created = await api.createList(boardId, val);
+      canvas.insertBefore(buildList(created), wrap);
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   });
 
   return wrap;
@@ -196,21 +177,17 @@ function buildCard(card) {
   return el;
 }
 
-function editCard(el, text, card) {
-  openInlineEditor(text, {
-    value: card.text || '',
-    multiline: true,
-    onCommit: async (val) => {
-      const listId = Number(el.closest('.bl-list').dataset.id);
-      try {
-        const updated = await api.patchCard(boardId, listId, card.id, { text: val });
-        card.text = updated.text;
-        text.textContent = updated.text || '';
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    },
-  });
+async function editCard(el, text, card) {
+  const val = await cardDialog({ title: 'Edit task', okLabel: 'Save', value: card.text || '' });
+  if (val == null || val === (card.text || '')) return;
+  const listId = Number(el.closest('.bl-list').dataset.id);
+  try {
+    const updated = await api.patchCard(boardId, listId, card.id, { text: val });
+    card.text = updated.text;
+    text.textContent = updated.text || '';
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
 
 async function deleteCard(el, card) {
@@ -231,37 +208,62 @@ function buildAddCard(cards, listId) {
   btn.textContent = '+ Add a card';
   wrap.appendChild(btn);
 
-  btn.addEventListener('click', () => {
-    const restore = suspendAncestorsDrag(wrap);
-    const input = document.createElement('textarea');
-    input.className = 'bl-input bl-textarea';
-    input.rows = 2;
-    input.placeholder = 'Card text…';
-    wrap.replaceChildren(input);
-    input.focus();
-
-    let done = false;
-    const reset = () => { if (done) return; done = true; restore(); wrap.replaceChildren(btn); };
-    const submit = async () => {
-      const val = input.value.trim();
-      if (!val) { reset(); return; }
-      try {
-        const created = await api.createCard(boardId, listId, val);
-        cards.appendChild(buildCard(created));
-        input.value = '';            // keep the composer open for rapid entry
-        input.focus();
-      } catch (e) {
-        toast(e.message, 'error');
-      }
-    };
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
-      else if (e.key === 'Escape') { e.preventDefault(); reset(); }
-    });
-    input.addEventListener('blur', reset);
+  btn.addEventListener('click', async () => {
+    const val = await cardDialog({ title: 'New task', okLabel: 'Create', value: '' });
+    if (!val) return;
+    try {
+      const created = await api.createCard(boardId, listId, val);
+      cards.appendChild(buildCard(created));
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   });
 
   return wrap;
+}
+
+// Modal window for adding / editing a task (card). Resolves to the trimmed
+// text, or null when cancelled / left empty.
+function cardDialog({ title, okLabel, value }) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.innerHTML = `
+      <div class="modal-card" style="width:min(480px,96vw)">
+        <div class="modal-head">
+          <strong></strong>
+          <button class="icon-btn" data-act="close" aria-label="Close">✕</button>
+        </div>
+        <div style="padding:16px 18px">
+          <textarea class="input" rows="4" dir="auto" placeholder="Task text…"></textarea>
+        </div>
+        <div class="modal-foot" style="justify-content:flex-end">
+          <button class="btn" data-act="cancel">Cancel</button>
+          <button class="btn primary" data-act="ok"></button>
+        </div>
+      </div>`;
+    overlay.querySelector('.modal-head strong').textContent = title;
+    overlay.querySelector('[data-act="ok"]').textContent = okLabel;
+    const input = overlay.querySelector('textarea');
+    input.value = value || '';
+    const close = (val) => { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+    const submit = () => close(input.value.trim() || null);
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(null); } };
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) return close(null);
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (act === 'ok') submit();
+      else if (act === 'cancel' || act === 'close') close(null);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); close(null); }
+    });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    input.focus();
+    input.select();
+  });
 }
 
 // ------------------------------------------------------------- drag & drop (native)
@@ -342,44 +344,4 @@ function dragAfter(container, pos, selector, axis) {
     if (offset < 0 && offset > closest.offset) closest = { offset, el };
   }
   return closest.el;
-}
-
-// -------------------------------------------------------------------------- shared
-// Swap a display element for an input in place; commit on Enter/blur, cancel on Escape.
-function openInlineEditor(displayEl, { value, multiline, onCommit }) {
-  const restore = suspendAncestorsDrag(displayEl);
-  const input = document.createElement(multiline ? 'textarea' : 'input');
-  input.className = multiline ? 'bl-input bl-textarea' : 'bl-input';
-  if (multiline) input.rows = 2;
-  input.value = value;
-  displayEl.replaceWith(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  const finish = async (commit) => {
-    if (done) return;
-    done = true;
-    restore();
-    const val = input.value.trim();
-    input.replaceWith(displayEl);
-    if (commit && val && val !== value) await onCommit(val);
-  };
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (!multiline || !e.shiftKey)) { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-  input.addEventListener('blur', () => finish(true));
-}
-
-// Native drag is initiated by the nearest draggable ancestor, which would hijack text
-// selection inside an editor. Turn those ancestors' draggable off for the edit's lifetime.
-function suspendAncestorsDrag(node) {
-  const suspended = [];
-  let el = node.parentElement;
-  while (el && el !== canvas) {
-    if (el.draggable) { el.draggable = false; suspended.push(el); }
-    el = el.parentElement;
-  }
-  return () => suspended.forEach((e) => { e.draggable = true; });
 }
