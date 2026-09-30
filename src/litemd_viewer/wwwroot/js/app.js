@@ -139,6 +139,17 @@ function openBoards() {
   navigate({ name: 'boards' });
 }
 
+function syncNav(active) {
+  for (const [id, name] of [['dashboardBtn', 'notes'], ['boardsBtn', 'boards']]) {
+    const el = $(id);
+    if (!el) continue;
+    const on = active === name;
+    el.classList.toggle('active', on);
+    if (on) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
+  }
+}
+
 function showNotes() {
   stopAutoSave();
   closeRelations();
@@ -146,8 +157,7 @@ function showNotes() {
   applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.add('dashboard');
-  $('dashboardBtn')?.classList.add('active');
-  $('boardsBtn')?.classList.remove('active');
+  syncNav('notes');
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
@@ -169,8 +179,7 @@ function showBoards() {
   applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.add('dashboard');
-  $('dashboardBtn')?.classList.remove('active');
-  $('boardsBtn')?.classList.add('active');
+  syncNav('boards');
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
@@ -194,8 +203,7 @@ function showBoardLists(boardId) {
   applyReadOnly(false);
   document.body.classList.remove('file-open');
   document.body.classList.add('dashboard');
-  $('dashboardBtn')?.classList.remove('active');
-  $('boardsBtn')?.classList.add('active');
+  syncNav('boards');
   $('welcome').classList.add('hidden');
   $('viewer').classList.add('hidden');
   $('editor').classList.add('hidden');
@@ -217,8 +225,7 @@ function showBoardLists(boardId) {
 async function loadFileContent(id, mode) {
   // leaving the dashboard / boards for a real file
   document.body.classList.remove('dashboard');
-  $('dashboardBtn')?.classList.remove('active');
-  $('boardsBtn')?.classList.remove('active');
+  syncNav(null);
   $('dashboard')?.classList.add('hidden');
   $('boards')?.classList.add('hidden');
   $('boardLists')?.classList.add('hidden');
@@ -394,8 +401,7 @@ function showWelcome() {
   clearAiChat();
   document.body.classList.remove('file-open');
   document.body.classList.remove('dashboard');
-  $('dashboardBtn')?.classList.remove('active');
-  $('boardsBtn')?.classList.remove('active');
+  syncNav(null);
   $('dashboard')?.classList.add('hidden');
   $('boards')?.classList.add('hidden');
   $('boardLists')?.classList.add('hidden');

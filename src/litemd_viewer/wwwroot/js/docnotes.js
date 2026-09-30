@@ -315,7 +315,10 @@ function setOpen(on) {
   const btn = $('notesBtn');
   const wasOpen = panel.classList.contains('open');
   panel.classList.toggle('open', on);
-  if (btn) btn.classList.toggle('active', on);
+  if (btn) {
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
   if (on) {
     if (!wasOpen) localStorage.setItem(OPEN_KEY, '1');
   } else {

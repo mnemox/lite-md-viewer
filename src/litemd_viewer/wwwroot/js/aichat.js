@@ -312,7 +312,11 @@ function setCollapsed(on) {
 function setOpen(on) {
   const panel = $('aiPanel');
   panel.classList.toggle('open', on);
-  $('askBtn').classList.toggle('active', on);
+  const btn = $('askBtn');
+  if (btn) {
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
   if (on) {
     if (panel.classList.contains('collapsed')) {
       setCollapsed(false);
