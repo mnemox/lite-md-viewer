@@ -123,6 +123,10 @@ class SpaStaticFiles(StaticFiles):
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
             if exc.status_code == 404 and not path.startswith("api"):
+                # Missing static assets (css/js/png/...) must stay a 404; only
+                # extensionless client-side routes get the app shell.
+                if "." in path.rsplit("/", 1)[-1]:
+                    raise
                 return await super().get_response("index.html", scope)
             raise
 

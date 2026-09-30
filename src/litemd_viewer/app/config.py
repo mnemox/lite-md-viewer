@@ -26,7 +26,19 @@ STATIC_DIR = CONTENT_ROOT / "wwwroot"
 HOST = "127.0.0.1"
 DEFAULT_PORT = 5099
 PORT_OVERRIDE = os.environ.get("PORT", "").strip()
-PORT = int(PORT_OVERRIDE) if PORT_OVERRIDE else DEFAULT_PORT
+
+
+def _parse_port(raw: str) -> int:
+    try:
+        port = int(raw)
+    except ValueError:
+        raise RuntimeError(f'Invalid PORT value {raw!r}: must be an integer.')
+    if not 1 <= port <= 65535:
+        raise RuntimeError(f'Invalid PORT value {raw!r}: must be 1-65535.')
+    return port
+
+
+PORT = _parse_port(PORT_OVERRIDE) if PORT_OVERRIDE else DEFAULT_PORT
 
 # Document file types the app manages and renders (lower-case, incl. dot).
 DOCUMENT_EXT = (".md", ".markdown", ".xml")
@@ -45,7 +57,19 @@ INDEX_DEBOUNCE_SECONDS = 2.0
 INDEX_COMMIT_IDLE_SECONDS = 2.0
 
 EMBED_MODEL = os.environ.get("LITEMD_EMBED_MODEL", "BAAI/bge-small-en-v1.5")
-EMBED_DIM = int(os.environ.get("LITEMD_EMBED_DIM", "384"))
+
+
+def _parse_embed_dim(raw: str) -> int:
+    try:
+        dim = int(raw)
+    except ValueError:
+        raise RuntimeError(f'Invalid LITEMD_EMBED_DIM value {raw!r}: must be an integer.')
+    if dim <= 0:
+        raise RuntimeError(f'Invalid LITEMD_EMBED_DIM value {raw!r}: must be positive.')
+    return dim
+
+
+EMBED_DIM = _parse_embed_dim(os.environ.get("LITEMD_EMBED_DIM", "384"))
 VECTOR_COLLECTION = "doc_chunks"
 VECTOR_NOTES_COLLECTION = "note_chunks"
 VECTOR_FIELD = "embedding"

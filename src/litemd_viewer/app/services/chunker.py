@@ -22,8 +22,17 @@ from .. import config
 
 FENCE_RE = re.compile(r"^\s{0,3}(```|~~~)")
 
-# ---- markdown cleanup ----
-_FRONT_MATTER_RE = re.compile(r"\A---[^\n]*\n.*?\n---[^\n]*\n", re.S)
+# Delimiters must be lines containing only "---" (plus whitespace). The inner block
+# must look like YAML (contain a ":") so a leading "---" horizontal rule followed by
+# a later "---" rule is not mistaken for front matter and stripped.
+_FRONT_MATTER_RE = re.compile(r"\A---[ \t]*\r?\n(.*?)\r?\n---[ \t]*\r?\n", re.S)
+
+
+def _strip_front_matter(text: str) -> str:
+    m = _FRONT_MATTER_RE.match(text)
+    if m and ":" in m.group(1):
+        return text[m.end():]
+    return text
 _FENCE_LINE_RE = re.compile(r"^\s{0,3}(?:```|~~~)\s*([^\n]*)$")
 # A line of only dashes/stars/underscores or table rule pipes carries no words at all.
 _RULE_RE = re.compile(r"^\s*(?:[-*_=]\s*){2,}$")
@@ -46,8 +55,10 @@ _ITALIC_STAR_RE = re.compile(r"(?<!\*)\*([^*\n]+)\*(?!\*)")
 _ITALIC_UNDER_RE = re.compile(r"(?<!\w)_([^_\n]+)_(?!\w)")
 _BACKTICK_RE = re.compile(r"`+")
 # Mermaid node labels are prose; its ids and arrows are structure.
+# NB: inside [...] a "|" is a literal pipe, not alternation, so it must not appear
+# in the negated classes below -- otherwise labels containing "|" are truncated.
 _MERMAID_LABEL_RE = re.compile(
-    r'"([^"\n]{2,})"|\[([^\]|\n]{2,})\]|\(([^)|\n]{2,})\)|\{([^}|\n]{2,})\}'
+    r'"([^"\n]{2,})"|\[([^\]\n]{2,})\]|\(([^)\n]{2,})\)|\{([^}\n]{2,})\}'
 )
 _SPACES_RE = re.compile(r"[ \t]{2,}")
 _BLANKS_RE = re.compile(r"\n{3,}")
@@ -82,7 +93,7 @@ def clean_markdown(text: str) -> str:
     if not text:
         return ""
 
-    text = _HTML_COMMENT_RE.sub(" ", _FRONT_MATTER_RE.sub("", text))
+    text = _HTML_COMMENT_RE.sub(" ", _strip_front_matter(text))
 
     out: list[str] = []
     in_fence = False

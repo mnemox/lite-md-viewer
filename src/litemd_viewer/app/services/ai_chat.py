@@ -42,6 +42,16 @@ def build_context(
         excerpt = hit.snippet
         block = f"## {heading}\n{excerpt}"
         if budget - len(block) < 0:
+            if not parts:
+                # A single excerpt larger than the whole budget: truncate it so the
+                # model still gets something instead of an empty context.
+                block = block[:budget]
+                parts.append(block)
+                sources.append(AiSourceDto(
+                    section_path=hit.section_path,
+                    start_offset=hit.start_offset,
+                    snippet=hit.snippet[:budget],
+                ))
             break
         parts.append(block)
         budget -= len(block)

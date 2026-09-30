@@ -206,7 +206,8 @@ class GraphService:
                 (GraphEdge.from_id == file_id) | (GraphEdge.to_id == file_id),
             )
         )
-        self.db.execute(delete(GraphMember).where(GraphMember.file_id == file_id))
+        self.db.execute(delete(GraphMember).where(
+            GraphMember.graph_id == graph_id, GraphMember.file_id == file_id))
         self.db.commit()
 
         remaining = self.db.scalar(
@@ -233,7 +234,7 @@ class GraphService:
             except OSError:
                 pass  # best effort
 
-        for model in (Attachment, GraphCompanion, GraphColorMap):
+        for model in (Attachment, GraphCompanion, GraphColorMap, GraphEdge, GraphMember):
             self.db.execute(delete(model).where(model.graph_id == graph_id))
         self.db.execute(delete(Graph).where(Graph.id == graph_id))
         self.db.commit()
@@ -257,13 +258,19 @@ class GraphService:
             nodes = [_node(solo)] if solo is not None else []
             return GraphDto(active_id=active_id, nodes=nodes, edges=[], companions=[])
 
-        by_id = {f.id: f for f in self.db.scalars(select(ManagedFile)).all()}
         member_ids = self.db.scalars(
             select(GraphMember.file_id).where(GraphMember.graph_id == graph_id)
         ).all()
         companion_ids = self.db.scalars(
             select(GraphCompanion.file_id).where(GraphCompanion.graph_id == graph_id)
         ).all()
+        wanted = set(member_ids) | set(companion_ids)
+        by_id = (
+            {f.id: f for f in self.db.scalars(
+                select(ManagedFile).where(ManagedFile.id.in_(wanted))
+            ).all()}
+            if wanted else {}
+        )
         edges = [
             RelationEdgeDto(from_id=e.from_id, to_id=e.to_id, kind=e.kind)
             for e in self.db.scalars(

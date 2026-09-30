@@ -54,9 +54,16 @@ def get_content(file_id: int, session: Session = Depends(get_session)) -> Conten
             text=mirror.content, on_disk=False, read_only=True,
         )
 
-    text = platform_fs.read_text_tolerant(file.full_path)
+    try:
+        text = platform_fs.read_text_tolerant(file.full_path)
+    except OSError as exc:
+        raise problem(f"Could not read file: {exc}")
     file.last_opened_utc = utcnow()
-    session.commit()
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        # last_opened_utc is best-effort telemetry; the read itself succeeded.
 
     return ContentDto(
         id=file.id, title=file.title, full_path=file.full_path,

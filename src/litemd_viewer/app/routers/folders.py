@@ -36,6 +36,9 @@ def create_folder(
     if not req.name or not req.name.strip():
         raise bad_request("A folder name is required.")
 
+    if req.parent_id is not None and session.get(Folder, req.parent_id) is None:
+        raise bad_request("Parent folder does not exist.")
+
     existing = session.scalars(select(Folder)).all()
     folder = Folder(
         name=req.name.strip(),
@@ -56,6 +59,8 @@ def patch_folder(
         raise not_found()
 
     if req.name is not None:
+        if not req.name.strip():
+            raise bad_request("A folder name is required.")
         folder.name = req.name.strip()
 
     if req.move_to_root:
@@ -63,6 +68,8 @@ def patch_folder(
     elif req.parent_id is not None:
         if req.parent_id == folder_id:
             raise bad_request("A folder cannot be its own parent.")
+        if session.get(Folder, req.parent_id) is None:
+            raise bad_request("Parent folder does not exist.")
         if _creates_cycle(session, folder_id, req.parent_id):
             raise bad_request("That move would create a cycle.")
         folder.parent_id = req.parent_id

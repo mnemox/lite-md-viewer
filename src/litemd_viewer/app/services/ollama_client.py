@@ -66,7 +66,11 @@ async def chat_stream(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=config.AI_TIMEOUT) as client:
+        # A single float timeout would also cap the gap between streamed chunks,
+        # aborting a slow-but-alive generation. Keep a short connect timeout but
+        # leave streaming reads unbounded.
+        timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream(
                 "POST", f"{config.OLLAMA_URL}/api/chat", json=payload
             ) as resp:
@@ -84,6 +88,7 @@ async def chat_stream(
                     try:
                         row = json.loads(line)
                     except json.JSONDecodeError:
+                        log.warning("Ignoring non-JSON Ollama stream line: %.120r", line)
                         continue
                     if row.get("error"):
                         raise OllamaError(str(row["error"]))

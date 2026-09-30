@@ -100,6 +100,9 @@ def add_file(
             # The client opens the existing document instead of showing an error.
             raise conflict("This file is already managed.", id=candidate.id)
 
+    if req.folder_id is not None and session.get(Folder, req.folder_id) is None:
+        raise bad_request("Target folder does not exist.")
+
     file = ManagedFile(
         full_path=full,
         title=os.path.splitext(os.path.basename(full))[0],
@@ -143,6 +146,9 @@ def add_folder_files(
     existing = session.scalars(select(ManagedFile)).all()
     known = {platform_fs.path_key(f.full_path) for f in existing}
     sort_order = max((f.sort_order for f in existing), default=0)
+
+    if req.folder_id is not None and session.get(Folder, req.folder_id) is None:
+        raise bad_request("Target folder does not exist.")
 
     added: list[ManagedFile] = []
     skipped = 0
@@ -213,6 +219,14 @@ def create_file(
     except OSError as exc:
         raise problem(f"Could not create file: {exc}")
 
+    if req.folder_id is not None and session.get(Folder, req.folder_id) is None:
+        # File was already created on disk; remove it again to avoid an orphan.
+        try:
+            os.remove(full)
+        except OSError:
+            pass
+        raise bad_request("Target folder does not exist.")
+
     file = ManagedFile(
         full_path=full,
         title=title,
@@ -239,10 +253,14 @@ def patch_file(
 
     retitled = req.title is not None and req.title.strip() != file.title
     if req.title is not None:
+        if not req.title.strip():
+            raise bad_request("Title must not be empty.")
         file.title = req.title.strip()
     if req.move_to_root:
         file.folder_id = None
     elif req.folder_id is not None:
+        if session.get(Folder, req.folder_id) is None:
+            raise bad_request("Target folder does not exist.")
         file.folder_id = req.folder_id
     if req.sort_order is not None:
         file.sort_order = req.sort_order
@@ -277,6 +295,8 @@ def move_file(
 
     name = req.new_name.strip() if req.new_name and req.new_name.strip() \
         else os.path.basename(file.full_path)
+    if not platform_fs.is_valid_filename(name):
+        raise bad_request("Invalid file name.")
     if not config.is_supported(name):
         raise bad_request(config.UNSUPPORTED_MESSAGE)
 

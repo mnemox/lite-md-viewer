@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -73,3 +74,13 @@ def register_error_handlers(app: FastAPI) -> None:
         else:
             message = "Invalid request."
         return JSONResponse(status_code=400, content={"error": message})
+
+    @app.exception_handler(IntegrityError)
+    async def _integrity_error(_request: Request, exc: IntegrityError) -> JSONResponse:
+        # Unique-constraint races (e.g. duplicate note references) must stay in the
+        # {"error": ...} envelope instead of FastAPI's default {"detail": ...}.
+        return JSONResponse(status_code=409, content={"error": "Duplicate entry."})
+
+    @app.exception_handler(Exception)
+    async def _unhandled(_request: Request, _exc: Exception) -> JSONResponse:
+        return JSONResponse(status_code=500, content={"error": "Internal error."})

@@ -58,6 +58,8 @@ def to_dto(note: DocumentNote) -> DocNoteDto:
 # ------------------------------------------------------------------ per-file notes
 @router.get("", response_model=list[DocNoteDto])
 def list_notes(file_id: int, session: Session = Depends(get_session)) -> list[DocNoteDto]:
+    if session.get(ManagedFile, file_id) is None:
+        raise not_found()
     notes = session.scalars(
         select(DocumentNote)
         .where(DocumentNote.file_id == file_id)
@@ -208,6 +210,8 @@ def create_reference(
         raise not_found()
     if not req.text or not req.text.strip():
         raise bad_request("Highlighted text is required.")
+    if req.start_offset < 0:
+        raise bad_request("Start offset must not be negative.")
     if req.length <= 0:
         raise bad_request("Length must be positive.")
 

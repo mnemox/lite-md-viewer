@@ -515,7 +515,17 @@ class LocalVectorDB:
 
             dim = ftype["dim"]
             metric = ftype.get("metric", "cosine")
-            capacity = max(2, len(rows) * 2)
+            existing_max = 0
+            try:
+                row = self.conn.execute(
+                    "SELECT max_elements FROM _vector_meta WHERE collection=? AND field=?",
+                    (collection, field),
+                ).fetchone()
+                if row is not None:
+                    existing_max = int(row["max_elements"] or 0)
+            except (sqlite3.OperationalError, ValueError, TypeError):
+                existing_max = 0
+            capacity = max(2, len(rows) * 2, existing_max)
 
             index = hnswlib.Index(space=metric, dim=dim)
             index.init_index(max_elements=capacity, ef_construction=200, M=16)
@@ -566,6 +576,11 @@ class LocalVectorDB:
 
             if vector is not None:
                 vector_field = self._resolve_vector_field(schema, vector_field)
+                expected = schema[vector_field].get("dim")
+                if expected is not None and len(vector) != expected:
+                    raise ValueError(
+                        f"Query vector dim {len(vector)} != collection dim {expected}"
+                    )
 
             candidate_ids: Optional[set] = None
 
@@ -671,7 +686,16 @@ class LocalVectorDB:
         self._require_text_fields(collection)
         fts = self._q(self._fts_name(collection))
         sql = f"SELECT rowid FROM {fts} WHERE {fts} MATCH ?"
-        return {row["rowid"] for row in self.conn.execute(sql, (text,))}
+        try:
+            return {row["rowid"] for row in self.conn.execute(sql, (text,))}
+        except sqlite3.OperationalError:
+            # Raw user text may contain FTS5 operators (", *, OR, ...); fall back
+            # to a quoted phrase so special characters can't crash search.
+            phrase = '"' + text.replace('"', '""') + '"'
+            try:
+                return {row["rowid"] for row in self.conn.execute(sql, (phrase,))}
+            except sqlite3.OperationalError:
+                return set()
 
     def _search_text_ranked(self, collection: str, text: str) -> List[int]:
         """Matching rowids, best first.
@@ -689,11 +713,24 @@ class LocalVectorDB:
                 )
             ]
         except sqlite3.OperationalError:
-            return [
-                row["rowid"] for row in self.conn.execute(
-                    f"SELECT rowid FROM {fts} WHERE {fts} MATCH ?", (text,)
-                )
-            ]
+            # Either bm25() is unavailable (fts4) or the query has FTS5 syntax
+            # characters -- retry as a quoted phrase, then give up gracefully.
+            phrase = '"' + text.replace('"', '""') + '"'
+            try:
+                return [
+                    row["rowid"] for row in self.conn.execute(
+                        f"SELECT rowid FROM {fts} WHERE {fts} MATCH ?", (phrase,)
+                    )
+                ]
+            except sqlite3.OperationalError:
+                try:
+                    return [
+                        row["rowid"] for row in self.conn.execute(
+                            f"SELECT rowid FROM {fts} WHERE {fts} MATCH ?", (text,)
+                        )
+                    ]
+                except sqlite3.OperationalError:
+                    return []
 
     def _fetch_by_ids(
         self,
@@ -704,13 +741,13 @@ class LocalVectorDB:
     ) -> List[Dict[str, Any]]:
         table = self._q(self._table_name(collection))
         if ids is None:
-            sql = f"SELECT * FROM {table} LIMIT ?"
+            sql = f"SELECT * FROM {table} ORDER BY doc_id LIMIT ?"
             params = (limit,)
         else:
             if not ids:
                 return []
             placeholders = ", ".join("?" for _ in ids)
-            sql = f"SELECT * FROM {table} WHERE doc_id IN ({placeholders}) LIMIT ?"
+            sql = f"SELECT * FROM {table} WHERE doc_id IN ({placeholders}) ORDER BY doc_id LIMIT ?"
             params = tuple(ids) + (limit,)
 
         rows = self.conn.execute(sql, params).fetchall()
